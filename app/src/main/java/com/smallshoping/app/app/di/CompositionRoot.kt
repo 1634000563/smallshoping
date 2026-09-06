@@ -21,6 +21,7 @@ import com.smallshoping.app.ai.tools.GetMemberBalanceHandler
 import com.smallshoping.app.ai.tools.GetTodaySalesHandler
 import com.smallshoping.app.ai.tools.PurchaseInHandler
 import com.smallshoping.app.ai.tools.RechargeMemberHandler
+import com.smallshoping.app.ai.tools.RecordLossHandler
 import com.smallshoping.app.ai.tools.ReorderLastItemHandler
 import com.smallshoping.app.ai.tools.ToolExecutor
 import com.smallshoping.app.ai.tools.ToolRef
@@ -125,7 +126,8 @@ class CompositionRoot {
             ToolRef("reorder_last_item") to ReorderLastItemHandler(
                 customerResolver, resolver, addItemHandler,
                 products, memory, memoryWritePolicy
-            )
+            ),
+            ToolRef("record_loss") to RecordLossHandler(resolver, recordLossUseCase)
         )
     )
 
@@ -139,7 +141,7 @@ class CompositionRoot {
         "find_product", "create_product", "get_context", "add_sale_item",
         "checkout_sale", "get_today_sales", "purchase_in",
         "find_member", "get_member_balance", "recharge_member",
-        "apply_yesterday_price", "reorder_last_item"
+        "apply_yesterday_price", "reorder_last_item", "record_loss"
     )
 
     val inputAdapter = InputAdapter(session = session, allowedTools = allowedTools)

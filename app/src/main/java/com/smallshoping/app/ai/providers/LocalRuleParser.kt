@@ -57,6 +57,25 @@ class LocalRuleParser : AiProvider {
                 ) + if (product.isNotBlank()) mapOf("product" to product) else emptyMap()
             )
         }
+        // 损耗两斤土豆 / 土豆坏了2斤（Task 033 生鲜损耗）
+        LOSS_PATTERN.find(text)?.let { m ->
+            val quantity = toArabicNumber(m.groupValues[1]) ?: return clarification()
+            val unit = m.groupValues[2].ifBlank { "斤" }
+            val product = m.groupValues[3].trim()
+            return AiResponse.ToolCall(
+                "record_loss",
+                mapOf("product" to product, "quantity" to "$quantity$unit")
+            )
+        }
+        LOSS_BROKEN_PATTERN.find(text)?.let { m ->
+            val quantity = toArabicNumber(m.groupValues[2]) ?: return clarification()
+            val unit = m.groupValues[3].ifBlank { "斤" }
+            val product = m.groupValues[1].trim()
+            return AiResponse.ToolCall(
+                "record_loss",
+                mapOf("product" to product, "quantity" to "$quantity$unit")
+            )
+        }
         // 卖/来 X斤 商品（X 支持阿拉伯数字与单个中文数字：两/二/三…）
         QUANTITY_PATTERN.find(text)?.let { m ->
             val rawQuantity = m.groupValues[1]
@@ -137,6 +156,16 @@ class LocalRuleParser : AiProvider {
         val REORDER_PATTERN = Regex(
             "^(.+?)上次(?:那些|那个|的)?\\s*(.*?)再来" +
                 "(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)$"
+        )
+        /** 损耗：损耗两斤土豆（单位缺省按斤） */
+        val LOSS_PATTERN = Regex(
+            "^损耗(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +
+                "(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$"
+        )
+        /** 损耗：土豆坏了2斤 */
+        val LOSS_BROKEN_PATTERN = Regex(
+            "^(.+?)坏了(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +
+                "(斤|公斤|kg|克|个|盒|米)?$"
         )
         /** 充值金额：长形态优先（块毛>元>小数>整数），防止 \d+ 提前截断「2块8」 */
         val RECHARGE_PATTERN =

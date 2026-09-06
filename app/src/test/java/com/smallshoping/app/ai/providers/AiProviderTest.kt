@@ -112,6 +112,20 @@ class AiProviderTest {
     }
 
     @Test
+    fun `本地解析：损耗两斤土豆 → record_loss（Task 033）`() {
+        val r = parser.complete(request("损耗两斤土豆")) as AiResponse.ToolCall
+        assertEquals("record_loss", r.toolName)
+        assertEquals("土豆", r.entities["product"])
+        assertEquals("2斤", r.entities["quantity"])
+        val r2 = parser.complete(request("土豆坏了2斤")) as AiResponse.ToolCall
+        assertEquals("record_loss", r2.toolName)
+        assertEquals("土豆", r2.entities["product"])
+        assertEquals("2斤", r2.entities["quantity"])
+        val r3 = parser.complete(request("损耗半斤土豆")) as AiResponse.ToolCall
+        assertEquals("0.5斤", r3.entities["quantity"])
+    }
+
+    @Test
     fun `无法识别：返回澄清而非猜测`() {
         val r = parser.complete(request("今天天气怎么样"))
         assertTrue(r is AiResponse.Clarification)
