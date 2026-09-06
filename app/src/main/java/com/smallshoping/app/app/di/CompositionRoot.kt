@@ -43,6 +43,10 @@ class CompositionRoot {
 
     private val resolver = ProductResolver(products)
 
+    /** Domain UseCase 公开暴露：AI 与人工路径必须复用同一实例（Gate A）。 */
+    val addSaleItemUseCase = AddSaleItemUseCase(sales, products)
+    val checkoutSaleUseCase = CheckoutSaleUseCase(sales)
+
     val executor = ToolExecutor(
         catalog = V1ToolCatalog,
         riskGate = RiskGate(),
@@ -53,12 +57,12 @@ class CompositionRoot {
             ToolRef("get_context") to GetContextHandler(contexts, session.deviceId),
             ToolRef("add_sale_item") to AddSaleItemHandler(
                 resolver,
-                AddSaleItemUseCase(sales, products),
+                addSaleItemUseCase,
                 contexts,
                 session
             ),
             ToolRef("checkout_sale") to CheckoutSaleHandler(
-                CheckoutSaleUseCase(sales),
+                checkoutSaleUseCase,
                 contexts,
                 session
             ),

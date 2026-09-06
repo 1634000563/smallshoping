@@ -1,4 +1,5 @@
 {"id": "veg-001", "utterance": "土豆两斤六", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
+{"id": "veg-000", "utterance": "卖两斤土豆", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
 {"id": "veg-002", "utterance": "进100斤土豆，进价2块8，卖3块8", "expected_intent": "PURCHASE_AND_PRICE", "expected_tool": "purchase_in", "risk": "LOW", "clarification": false}
 {"id": "veg-003", "utterance": "刚才那个不要了", "expected_intent": "REMOVE_CURRENT_SALE_ITEM", "expected_tool": "remove_sale_item", "risk": "MEDIUM", "clarification": true}
 {"id": "veg-004", "utterance": "给张姐充200", "expected_intent": "RECHARGE_MEMBER", "expected_tool": "recharge_member", "risk": "MEDIUM", "clarification": true}
