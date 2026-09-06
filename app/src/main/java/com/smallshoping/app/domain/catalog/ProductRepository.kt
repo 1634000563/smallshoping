@@ -12,6 +12,9 @@ interface ProductRepository {
 
     fun findProductById(id: String): Product?
 
+    /** 全部商品（Entity Resolution 候选扫描用）。 */
+    fun allProducts(): List<Product>
+
     /** 按归一化商品名精确查找。 */
     fun findByNormalizedName(normalizedName: String): Product?
 

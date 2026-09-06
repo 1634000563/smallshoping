@@ -29,6 +29,10 @@ class InMemoryProductRepository : ProductRepository {
         byId[id]
     }
 
+    override fun allProducts(): List<Product> = synchronized(lock) {
+        byId.values.toList()
+    }
+
     override fun findByNormalizedName(normalizedName: String): Product? = synchronized(lock) {
         byName[normalizedName]
     }
