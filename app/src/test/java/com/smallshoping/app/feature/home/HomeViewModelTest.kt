@@ -1,5 +1,6 @@
 package com.smallshoping.app.feature.home
 
+import com.smallshoping.app.ai.orchestrator.AiOrchestrator
 import com.smallshoping.app.app.di.CompositionRoot
 import com.smallshoping.app.core.common.normalize
 import com.smallshoping.app.core.money.Money
@@ -83,5 +84,43 @@ class HomeViewModelTest {
         assertTrue(blank.reply.contains("请输入"))
         val noPending = viewModel.confirm(approved = true)
         assertTrue(noPending.reply.contains("没有待确认"))
+    }
+
+    @Test
+    fun `确认卡片：待确认状态 kind=CONFIRM（Task 042）`() {
+        seedPotato()
+        viewModel.handleInput("卖两斤土豆")
+        val state = viewModel.handleInput("结账")
+        assertEquals(UiKind.CONFIRM, state.kind)
+        assertTrue(state.pendingConfirmId != null)
+    }
+
+    @Test
+    fun `异常状态：AI 不可用时 kind=ERROR 且不阻塞营业（Task 042）`() {
+        val failing = AiOrchestrator(
+            provider = com.smallshoping.app.ai.providers.CloudAiProvider(
+                com.smallshoping.app.ai.providers.AiGatewayClient { throw IllegalStateException("timeout") }
+            ),
+            executor = root.executor,
+            disambiguation = com.smallshoping.app.data.repository.InMemoryDisambiguationStore()
+        )
+        val failingViewModel = HomeViewModel(root, failing)
+        val state = failingViewModel.handleInput("卖两斤土豆")
+        assertEquals(UiKind.ERROR, state.kind)
+        assertTrue(state.reply.contains("暂时不可用"))
+    }
+
+    @Test
+    fun `人工兜底：手动加与人工结账与 AI 路径相同账务事实（Gate A，Task 042）`() {
+        seedPotato()
+        val added = viewModel.manualAddItem("土豆", "2斤")
+        assertTrue(added.reply.contains("已加入"))
+        assertTrue(added.currentTask.contains("760 分"))
+        val checked = viewModel.manualCheckout()
+        assertTrue(checked.reply.contains("人工结账完成"))
+        assertEquals(4000L, com.smallshoping.app.domain.inventory.StockQuery(root.ledger).stockOf("P-1"))
+        // 与 AI 路径完成单一致（同一 Domain）
+        val sale = root.sales.allSales().first { it.status == com.smallshoping.app.domain.sales.SaleStatus.COMPLETED }
+        assertEquals(com.smallshoping.app.core.money.Money(760), sale.total)
     }
 }

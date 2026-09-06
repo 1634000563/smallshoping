@@ -17,11 +17,13 @@ import com.smallshoping.app.device.voice.AndroidSpeechRecognizerProvider
 import com.smallshoping.app.device.voice.SpeechResult
 
 /**
- * 极简主界面（Task 041）：语音/扫码（文本）/当前任务。
+ * 极简主界面（Task 041/042）：语音/扫码（文本）/当前任务/确认卡片/人工接管。
  *
  * - 无传统菜单（Route Guard）；老板只会看到：回复区、当前任务、
- *   一个输入框、语音按钮、确认/取消按钮；
+ *   一个输入框、语音按钮、确认/取消按钮、人工兜底按钮；
  * - 所有输入汇入 [HomeViewModel.handleInput]（唯一链路 UI→AI→Tool→Domain）；
+ * - 确认卡片：CONFIRM 状态黄色卡片提示；异常 ERROR 红色提示（AI 挂不影响营业）；
+ * - 人工接管：AI 不可用时「手动加」「人工结账」直接走 Domain（Gate A 同一事实）；
  * - 语音失败自动降级提示用键盘输入（离线宪法 #6）。
  */
 class MainActivity : Activity() {
@@ -110,6 +112,37 @@ class MainActivity : Activity() {
             wrap()
         )
         rootLayout.addView(inputRow, matchWidth())
+
+        // 人工接管行：AI 不可用时的兜底（同一 Domain，Gate A）
+        val manualRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        manualRow.addView(
+            Button(this).apply {
+                text = "手动加（如：土豆 2斤）"
+                setOnClickListener {
+                    val raw = input.text.toString().trim()
+                    val parts = raw.split(Regex("\\s+"), limit = 2)
+                    val state = if (parts.size == 2) {
+                        viewModel.manualAddItem(parts[0], parts[1])
+                    } else {
+                        HomeUiState(UiKind.ERROR, "手动加格式：商品名 数量（如 土豆 2斤）")
+                    }
+                    render(state)
+                    input.text.clear()
+                }
+            },
+            wrap()
+        )
+        manualRow.addView(
+            Button(this).apply {
+                text = "人工结账"
+                setOnClickListener { render(viewModel.manualCheckout()) }
+            },
+            wrap()
+        )
+        rootLayout.addView(manualRow, matchWidth())
         return rootLayout
     }
 
@@ -118,9 +151,11 @@ class MainActivity : Activity() {
             runOnUiThread {
                 when (result) {
                     is SpeechResult.Transcript -> render(viewModel.handleInput(result.text))
-                    is SpeechResult.NoMatch -> render(HomeUiState("没听清，请再说一次"))
+                    is SpeechResult.NoMatch -> render(
+                        HomeUiState(kind = UiKind.QUESTION, reply = "没听清，请再说一次")
+                    )
                     is SpeechResult.Error -> render(
-                        HomeUiState("${result.message}（可用键盘继续营业）")
+                        HomeUiState(kind = UiKind.ERROR, reply = "${result.message}（可用键盘继续营业）")
                     )
                 }
             }
@@ -133,6 +168,25 @@ class MainActivity : Activity() {
         val pending = state.pendingConfirmId != null
         confirmButton.isEnabled = pending
         cancelButton.isEnabled = pending
+        when (state.kind) {
+            // 确认卡片：黄色背景强调
+            UiKind.CONFIRM -> {
+                replyText.setBackgroundColor(Color.YELLOW)
+                replyText.setTextColor(Color.BLACK)
+            }
+
+            // 异常：红色提示（AI 不可用/业务失败，不阻塞营业）
+            UiKind.ERROR -> {
+                replyText.setBackgroundColor(Color.WHITE)
+                replyText.setTextColor(Color.RED)
+            }
+
+            // 追问/普通：常规样式
+            else -> {
+                replyText.setBackgroundColor(Color.WHITE)
+                replyText.setTextColor(Color.BLACK)
+            }
+        }
         if (pending) {
             Toast.makeText(this, "请按「确认」执行或「取消」", Toast.LENGTH_SHORT).show()
         }
