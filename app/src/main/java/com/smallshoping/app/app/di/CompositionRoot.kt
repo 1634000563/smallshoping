@@ -25,6 +25,7 @@ import com.smallshoping.app.ai.tools.V1ToolCatalog
 import com.smallshoping.app.data.ledger.InMemoryLedger
 import com.smallshoping.app.data.repository.InMemoryCustomerRepository
 import com.smallshoping.app.data.repository.InMemoryMemberRepository
+import com.smallshoping.app.data.repository.InMemoryMemoryStore
 import com.smallshoping.app.data.repository.InMemoryProductRepository
 import com.smallshoping.app.data.repository.InMemoryPurchaseRepository
 import com.smallshoping.app.data.repository.InMemorySaleRepository
@@ -74,6 +75,9 @@ class CompositionRoot {
     val customerDebtQuery = CustomerDebtQuery(customers, ledger)
 
     private val memberResolver = MemberResolver(members)
+
+    /** 店铺长期记忆（spec 06）：只存偏好/别名/规则/引用，不复制账务事实。 */
+    val memory = InMemoryMemoryStore()
 
     val executor = ToolExecutor(
         catalog = V1ToolCatalog,
