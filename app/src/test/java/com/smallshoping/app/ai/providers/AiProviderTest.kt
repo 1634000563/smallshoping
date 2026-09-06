@@ -144,6 +144,18 @@ class AiProviderTest {
     }
 
     @Test
+    fun `本地解析：条码纯数字串 → find_product_by_barcode（Task 036）`() {
+        val r = parser.complete(request("6901234567890")) as AiResponse.ToolCall
+        assertEquals("find_product_by_barcode", r.toolName)
+        assertEquals("6901234567890", r.entities["barcode"])
+        val r2 = parser.complete(request("12345678")) as AiResponse.ToolCall
+        assertEquals("find_product_by_barcode", r2.toolName)
+        // 非条码数字（太短/夹杂）不走条码路径
+        assertTrue(parser.complete(request("123")) is AiResponse.Clarification)
+        assertTrue(parser.complete(request("690-12345")) is AiResponse.Clarification)
+    }
+
+    @Test
     fun `无法识别：返回澄清而非猜测`() {
         val r = parser.complete(request("今天天气怎么样"))
         assertTrue(r is AiResponse.Clarification)

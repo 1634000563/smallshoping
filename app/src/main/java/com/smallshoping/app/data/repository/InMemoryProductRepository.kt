@@ -4,6 +4,7 @@ import com.smallshoping.app.domain.catalog.PriceHistoryEntry
 import com.smallshoping.app.domain.catalog.Product
 import com.smallshoping.app.domain.catalog.ProductAlias
 import com.smallshoping.app.domain.catalog.ProductAttribute
+import com.smallshoping.app.domain.catalog.ProductBarcode
 import com.smallshoping.app.domain.catalog.ProductRepository
 import com.smallshoping.app.domain.catalog.UnitConversion
 import com.smallshoping.app.core.quantity.Unit
@@ -26,6 +27,8 @@ class InMemoryProductRepository : ProductRepository {
     private val attributeIndex = HashMap<String, ProductAttribute>() // productId|normalizedName
     private val conversionList = LinkedHashMap<String, MutableList<UnitConversion>>()
     private val conversionIndex = HashMap<String, UnitConversion>() // productId|fromCode|toCode
+    private val barcodeList = LinkedHashMap<String, MutableList<ProductBarcode>>()
+    private val barcodeIndex = HashMap<String, Product>() // barcode → 商品
 
     override fun saveProduct(product: Product) = synchronized(lock) {
         byId[product.id] = product
@@ -114,4 +117,18 @@ class InMemoryProductRepository : ProductRepository {
         synchronized(lock) {
             conversionIndex["$productId|${fromUnit.code}|${toUnit.code}"]
         }
+
+    override fun addBarcode(barcode: ProductBarcode) = synchronized(lock) {
+        require(byId.containsKey(barcode.productId)) { "条码指向的商品不存在：${barcode.productId}" }
+        barcodeList.getOrPut(barcode.productId) { ArrayList() }.add(barcode)
+        barcodeIndex[barcode.barcode] = byId.getValue(barcode.productId)
+    }
+
+    override fun findByBarcode(barcode: String): Product? = synchronized(lock) {
+        barcodeIndex[barcode]
+    }
+
+    override fun barcodes(productId: String): List<ProductBarcode> = synchronized(lock) {
+        barcodeList[productId]?.toList() ?: emptyList()
+    }
 }

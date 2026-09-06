@@ -523,6 +523,27 @@ class EndToEndSliceTest {
     }
 
     @Test
+    fun `扫码通用输入：条码报商品 → 语音加购同一商品（Task 036）`() {
+        seedPotato()
+        root.products.addBarcode(
+            com.smallshoping.app.domain.catalog.ProductBarcode(
+                productId = "P-1", barcode = "6901234567890",
+                barcodeType = com.smallshoping.app.domain.catalog.BarcodeType.EAN13, isPrimary = true
+            )
+        )
+        // 扫码：确定性路径，无 AI 依赖
+        val scan = root.orchestrator.handle(root.inputAdapter.fromText("6901234567890"))
+        assertTrue((scan as OrchestratorReply.Text).text.contains("土豆"))
+        assertTrue(scan.text.contains("380"))
+        // 随后语音加购同一商品
+        val add = root.orchestrator.handle(root.inputAdapter.fromText("卖1斤土豆"))
+        assertTrue((add as OrchestratorReply.Text).text.contains("已加入"))
+        // 未录条码：明确提示不猜测
+        val unknown = root.orchestrator.handle(root.inputAdapter.fromText("6909999999999"))
+        assertTrue((unknown as OrchestratorReply.Text).text.contains("还没录"))
+    }
+
+    @Test
     fun `AI 失败不改变任何事实`() {
         seedPotato()
         val failing = AiOrchestrator(

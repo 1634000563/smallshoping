@@ -55,4 +55,13 @@ interface ProductRepository {
 
     /** 按（商品+from+to）精确查找换算。 */
     fun findConversion(productId: String, fromUnit: com.smallshoping.app.core.quantity.Unit, toUnit: com.smallshoping.app.core.quantity.Unit): UnitConversion?
+
+    /** 追加商品条码（spec 03 product_barcode，一个商品多条码）。 */
+    fun addBarcode(barcode: ProductBarcode)
+
+    /** 按条码精确查找商品；未录返回 null。 */
+    fun findByBarcode(barcode: String): Product?
+
+    /** 某商品全部条码。 */
+    fun barcodes(productId: String): List<ProductBarcode>
 }

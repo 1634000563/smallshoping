@@ -16,6 +16,7 @@ import com.smallshoping.app.ai.tools.CheckoutSaleHandler
 import com.smallshoping.app.ai.tools.CreateProductHandler
 import com.smallshoping.app.ai.tools.RecordCustomerCreditHandler
 import com.smallshoping.app.ai.tools.SettleCustomerDebtHandler
+import com.smallshoping.app.ai.tools.FindProductByBarcodeHandler
 import com.smallshoping.app.ai.tools.FindProductHandler
 import com.smallshoping.app.ai.tools.GetContextHandler
 import com.smallshoping.app.ai.tools.FindMemberHandler
@@ -117,6 +118,7 @@ class CompositionRoot {
         confirmationGate = ConfirmationGate(),
         handlers = mapOf(
             ToolRef("find_product") to FindProductHandler(resolver),
+            ToolRef("find_product_by_barcode") to FindProductByBarcodeHandler(products),
             ToolRef("create_product") to CreateProductHandler(products, session.storeId),
             ToolRef("get_context") to GetContextHandler(contexts, session.deviceId),
             ToolRef("add_sale_item") to addItemHandler,
@@ -155,7 +157,7 @@ class CompositionRoot {
     )
 
     val allowedTools = listOf(
-        "find_product", "create_product", "get_context", "add_sale_item",
+        "find_product", "find_product_by_barcode", "create_product", "get_context", "add_sale_item",
         "checkout_sale", "get_today_sales", "purchase_in",
         "find_member", "get_member_balance", "recharge_member",
         "apply_yesterday_price", "reorder_last_item", "record_loss",

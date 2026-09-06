@@ -28,6 +28,10 @@ class LocalRuleParser : AiProvider {
             text.contains("昨天") && text.contains("价") ->
                 AiResponse.ToolCall("apply_yesterday_price", emptyMap())
 
+            // 扫码输入：8-14 位纯数字（Task 036 条码通用输入，确定性路径）
+            BARCODE_PATTERN.matches(text) ->
+                AiResponse.ToolCall("find_product_by_barcode", mapOf("barcode" to text))
+
             else -> parseWithEntity(text)
         }
     }
@@ -190,6 +194,8 @@ class LocalRuleParser : AiProvider {
         val SETTLE_PATTERN = Regex(
             "^(.+?)还(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$"
         )
+        /** 条码：8-14 位纯数字（EAN-13/Code128 常见长度） */
+        val BARCODE_PATTERN = Regex("^\\d{8,14}$")
         /** 损耗：损耗两斤土豆（单位缺省按斤） */
         val LOSS_PATTERN = Regex(
             "^损耗(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +
