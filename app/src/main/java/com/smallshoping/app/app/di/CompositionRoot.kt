@@ -45,6 +45,7 @@ import com.smallshoping.app.data.repository.InMemoryProductRepository
 import com.smallshoping.app.data.repository.InMemoryPurchaseRepository
 import com.smallshoping.app.data.repository.InMemorySaleRepository
 import com.smallshoping.app.data.repository.InMemorySessionContextStore
+import com.smallshoping.app.domain.backup.BackupService
 import com.smallshoping.app.domain.catalog.ChangeProductPriceUseCase
 import com.smallshoping.app.domain.catalog.YesterdayPriceQuery
 import com.smallshoping.app.domain.customer.CustomerDebtQuery
@@ -126,6 +127,16 @@ class CompositionRoot(
     val commandJournal = InMemoryCommandJournal()
     val replayRunner: ReplayRunner by lazy { ReplayRunner(commandJournal, executor) }
     val crashRecovery = com.smallshoping.app.domain.journal.CrashRecoveryService(ledger)
+
+    /** 备份/恢复（Task 046）：账务事实+目录+命令日志快照，恢复前校验 checksum 与版本。 */
+    val backupService = BackupService(
+        ledger = ledger,
+        products = products,
+        members = members,
+        customers = customers,
+        journal = commandJournal,
+        storeId = session.storeId
+    )
 
     private val addItemHandler = AddSaleItemHandler(resolver, addSaleItemUseCase, contexts, session)
 
