@@ -1,6 +1,8 @@
 package com.smallshoping.app
 
 import com.tngtech.archunit.core.importer.ClassFileImporter
+import com.tngtech.archunit.core.importer.ImportOption
+import com.tngtech.archunit.core.importer.Location
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,7 +17,15 @@ import org.junit.Test
  */
 class BoundaryGuardTest {
 
-    private val classes = ClassFileImporter().importPackages("com.smallshoping.app")
+    // 边界规则只约束生产代码；测试代码可自由组装各层假实现。
+    // AGP 把单测类编入含 "UnitTest" 的目录，预定义 DO_NOT_INCLUDE_TESTS 不识别该布局。
+    private val excludeUnitTests = object : ImportOption {
+        override fun includes(location: Location): Boolean = !location.contains("UnitTest")
+    }
+
+    private val classes = ClassFileImporter()
+        .withImportOption(excludeUnitTests)
+        .importPackages("com.smallshoping.app")
 
     @Test
     fun `domain 不得依赖 Android、AI、UI、Data 或 Device`() {

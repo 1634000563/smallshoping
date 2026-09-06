@@ -18,6 +18,9 @@ value class Money(val minor: Long) : Comparable<Money> {
     /** 数量乘数（整数），用于单价 × 数量等场景；不接受浮点乘数。 */
     operator fun times(multiplier: Int): Money = Money(Math.multiplyExact(minor, multiplier.toLong()))
 
+    /** 单价 × 数量（最小刻度整数，如 380分/斤 × 2斤）。 */
+    operator fun times(multiplier: Long): Money = Money(Math.multiplyExact(minor, multiplier))
+
     override fun compareTo(other: Money): Int = minor.compareTo(other.minor)
 
     val isZero: Boolean get() = minor == 0L
