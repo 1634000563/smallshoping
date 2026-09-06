@@ -27,6 +27,7 @@ import com.smallshoping.app.ai.tools.ToolRef
 import com.smallshoping.app.ai.tools.V1ToolCatalog
 import com.smallshoping.app.data.ledger.InMemoryLedger
 import com.smallshoping.app.data.repository.InMemoryCustomerRepository
+import com.smallshoping.app.data.repository.InMemoryLossRepository
 import com.smallshoping.app.data.repository.InMemoryDisambiguationStore
 import com.smallshoping.app.data.repository.InMemoryMemberRepository
 import com.smallshoping.app.data.repository.InMemoryMemoryStore
@@ -39,6 +40,8 @@ import com.smallshoping.app.domain.catalog.YesterdayPriceQuery
 import com.smallshoping.app.domain.customer.CustomerDebtQuery
 import com.smallshoping.app.domain.customer.ReceiveCustomerPaymentUseCase
 import com.smallshoping.app.domain.customer.RecordCustomerCreditUseCase
+import com.smallshoping.app.domain.inventory.AdjustStockUseCase
+import com.smallshoping.app.domain.inventory.RecordLossUseCase
 import com.smallshoping.app.domain.inventory.StockQuery
 import com.smallshoping.app.domain.member.MemberFundsQuery
 import com.smallshoping.app.domain.member.RechargeMemberUseCase
@@ -74,6 +77,10 @@ class CompositionRoot {
     val checkoutSaleUseCase = CheckoutSaleUseCase(sales)
     val purchases = InMemoryPurchaseRepository(ledger, products)
     val purchaseInUseCase = PurchaseInUseCase(purchases, products, StockQuery(ledger))
+
+    val losses = InMemoryLossRepository(ledger)
+    val recordLossUseCase = RecordLossUseCase(losses, products, StockQuery(ledger))
+    val adjustStockUseCase = AdjustStockUseCase(ledger, products, StockQuery(ledger))
 
     val members = InMemoryMemberRepository()
     val rechargeMemberUseCase = RechargeMemberUseCase(members, ledger)
