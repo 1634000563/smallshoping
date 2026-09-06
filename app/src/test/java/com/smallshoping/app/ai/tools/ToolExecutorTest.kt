@@ -27,7 +27,9 @@ class ToolExecutorTest {
         riskGate = RiskGate(),
         confirmationGate = ConfirmationGate(),
         handlers = mapOf(
-            ToolRef("find_product") to FindProductHandler(products),
+            ToolRef("find_product") to FindProductHandler(
+                com.smallshoping.app.ai.entityresolution.ProductResolver(products)
+            ),
             ToolRef("get_context") to GetContextHandler(contexts, "DEVICE-1"),
             ToolRef("create_product") to CreateProductHandler(products, "STORE-1")
         )

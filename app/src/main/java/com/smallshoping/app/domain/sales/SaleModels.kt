@@ -14,6 +14,7 @@ enum class PaymentMethod { CASH, WECHAT, ALIPAY, MEMBER }
  * （AI 宪法：AI 不负责最终金额计算）。
  */
 data class SaleItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
     val productId: String,
     val productName: String,
     val quantity: Quantity,

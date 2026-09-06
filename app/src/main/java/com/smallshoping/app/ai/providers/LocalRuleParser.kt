@@ -28,6 +28,15 @@ class LocalRuleParser : AiProvider {
     }
 
     private fun parseWithEntity(text: String): AiResponse {
+        // 结账/买单（V1 默认现金手工确认；具体方式可显式说明）
+        CHECKOUT_PATTERN.find(text)?.let { m ->
+            val method = when (m.groupValues[1]) {
+                "微信" -> "wechat"
+                "支付宝" -> "alipay"
+                else -> "cash"
+            }
+            return AiResponse.ToolCall("checkout_sale", mapOf("payment_method" to method))
+        }
         // 卖/来 X斤 商品（X 支持阿拉伯数字与单个中文数字：两/二/三…）
         QUANTITY_PATTERN.find(text)?.let { m ->
             val rawQuantity = m.groupValues[1]
@@ -83,6 +92,7 @@ class LocalRuleParser : AiProvider {
     }
 
     private companion object {
+        val CHECKOUT_PATTERN = Regex("^(?:结账|买单|(微信|支付宝|现金)结账)$")
         val QUANTITY_PATTERN =
             Regex("^(?:卖|来)(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
         val PURCHASE_PATTERN =

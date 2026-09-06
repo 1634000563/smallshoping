@@ -1,28 +1,34 @@
 package com.smallshoping.app.ai.tools
 
-import com.smallshoping.app.core.common.normalize
-import com.smallshoping.app.domain.catalog.ProductRepository
+import com.smallshoping.app.ai.entityresolution.ProductResolver
+import com.smallshoping.app.ai.entityresolution.Resolution
 
 /**
  * find_product：按名称/别名查找商品（read，LOW，无确认）。
- * 命中多个时不猜测，返回全部候选由上层消歧（产品宪法 #9）。
+ * 经 Entity Resolution 引擎解析；多候选不猜测，返回 AMBIGUOUS 由上层消歧
+ * （产品宪法 #9）。
  */
-class FindProductHandler(private val products: ProductRepository) : ToolHandler {
+class FindProductHandler(private val resolver: ProductResolver) : ToolHandler {
 
     override fun execute(entities: Map<String, String>): Map<String, String> {
-        val query = normalize(entities.getValue("query"))
-        val byName = products.findByNormalizedName(query)
-        val byAlias = products.findByAlias(query)
-        val hits = listOfNotNull(byName, byAlias).distinctBy { it.id }
-        return if (hits.isEmpty()) {
-            mapOf("status" to "NOT_FOUND", "products" to "")
-        } else {
-            mapOf(
-                "status" to "OK",
-                "products" to hits.joinToString("|") {
-                    "${it.id}=${it.name}@${it.saleUnit.name}/${it.currentSalePrice.minor}"
+        val query = entities.getValue("query")
+        return when (val resolution = resolver.resolve(query)) {
+            is Resolution.NotFound -> mapOf("status" to "NOT_FOUND", "products" to "")
+
+            is Resolution.Ambiguous -> mapOf(
+                "status" to "AMBIGUOUS",
+                "products" to resolution.candidates.joinToString("|") {
+                    "${it.value.id}=${it.value.name}@${it.value.saleUnit.name}/${it.value.currentSalePrice.minor}"
                 }
             )
+
+            is Resolution.Resolved -> {
+                val p = resolution.value
+                mapOf(
+                    "status" to "OK",
+                    "products" to "${p.id}=${p.name}@${p.saleUnit.name}/${p.currentSalePrice.minor}"
+                )
+            }
         }
     }
 }

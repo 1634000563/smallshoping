@@ -40,6 +40,10 @@ enum class IntentType(val tool: String, val requiredEntities: Set<String>) {
     ADJUST_STOCK("adjust_stock", setOf("product", "quantity")),
     CREATE_FULFILLMENT("create_fulfillment", setOf("sale")),
     UPDATE_FULFILLMENT_STATUS("update_fulfillment_status", setOf("fulfillment", "status"));
+
+    companion object {
+        fun fromTool(toolName: String): IntentType? = values().firstOrNull { it.tool == toolName }
+    }
 }
 
 /**
