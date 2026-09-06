@@ -1,4 +1,4 @@
-package com.smallshoping.app
+package com.smallshoping.app.feature.home
 
 import android.app.Activity
 import android.graphics.Color

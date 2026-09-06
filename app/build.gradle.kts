@@ -27,4 +27,6 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    // Architecture Guard 的代码级自动检查
+    testImplementation("com.tngtech.archunit:archunit:1.3.0")
 }
