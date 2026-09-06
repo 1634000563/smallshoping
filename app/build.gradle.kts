@@ -14,6 +14,15 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+
+        // 开发密钥：默认空（APK 不含密钥，安全宪法 #1）；
+        // 本机临时注入用 -PdevAiApiKey=xxx，绝不提交该属性
+        val devAiApiKey = project.findProperty("devAiApiKey") as String? ?: ""
+        buildConfigField("String", "DEV_AI_API_KEY", "\"$devAiApiKey\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     compileOptions {
