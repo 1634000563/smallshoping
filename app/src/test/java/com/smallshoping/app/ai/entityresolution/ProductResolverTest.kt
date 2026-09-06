@@ -7,6 +7,7 @@ import com.smallshoping.app.data.repository.InMemoryProductRepository
 import com.smallshoping.app.domain.catalog.AliasSource
 import com.smallshoping.app.domain.catalog.Product
 import com.smallshoping.app.domain.catalog.ProductAlias
+import com.smallshoping.app.domain.catalog.ProductAttribute
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -79,5 +80,55 @@ class ProductResolverTest {
         assertTrue(r is Resolution.Resolved)
         assertEquals("P-1", (r as Resolution.Resolved).value.id)
         assertEquals(20, r.score)
+    }
+
+    // ---- Task 032：五金规格属性匹配（跨行业通用）----
+
+    private fun seedBolt(attributes: List<Pair<String, String>>) {
+        val bolt = product("P-10", "304 M8x30 外六角螺栓")
+        repo.saveProduct(bolt)
+        attributes.forEach { (name, value) ->
+            repo.addAttribute(
+                ProductAttribute(
+                    productId = "P-10", name = name, normalizedName = normalize(name),
+                    value = value, normalizedValue = normalize(value)
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `规格 token 属性精确命中：304 的螺栓`() {
+        seedBolt(listOf("材质" to "304", "规格" to "M8x30", "类型" to "外六角螺栓"))
+        val r = resolver.resolve("304 的螺栓")
+        assertTrue(r is Resolution.Resolved)
+        val resolved = r as Resolution.Resolved
+        assertEquals("P-10", resolved.value.id)
+        assertEquals(90, resolved.score)
+        assertEquals("attr_value_exact", resolved.reason)
+    }
+
+    @Test
+    fun `规格 token 命中：M8x30 螺丝`() {
+        seedBolt(listOf("材质" to "304", "规格" to "M8x30"))
+        val r = resolver.resolve("M8x30 螺丝")
+        assertTrue(r is Resolution.Resolved)
+        assertEquals("P-10", (r as Resolution.Resolved).value.id)
+    }
+
+    @Test
+    fun `多商品同规格：返回歧义不猜测`() {
+        seedBolt(listOf("材质" to "304"))
+        val nut = product("P-11", "六角螺母")
+        repo.saveProduct(nut)
+        repo.addAttribute(
+            ProductAttribute(
+                productId = "P-11", name = "材质", normalizedName = normalize("材质"),
+                value = "304", normalizedValue = normalize("304")
+            )
+        )
+        val r = resolver.resolve("304")
+        assertTrue(r is Resolution.Ambiguous)
+        assertEquals(2, (r as Resolution.Ambiguous).candidates.size)
     }
 }

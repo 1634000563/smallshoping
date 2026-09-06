@@ -3,6 +3,7 @@ package com.smallshoping.app.ai.entityresolution
 import com.smallshoping.app.core.common.normalize
 import com.smallshoping.app.domain.catalog.Product
 import com.smallshoping.app.domain.catalog.ProductRepository
+import com.smallshoping.app.domain.catalog.SpecTokenParser
 
 /**
  * 商品实体解析基础引擎。
@@ -49,6 +50,20 @@ class ProductResolver(private val products: ProductRepository) {
                 when {
                     a.startsWith(q) -> offer(product, 30, "alias_prefix")
                     a.contains(q) -> offer(product, 20, "alias_contains")
+                }
+            }
+            // 规格 token 属性匹配（Task 032：跨行业通用，五金 304/M8x30 属性化表达）
+            for (token in SpecTokenParser.extract(q)) {
+                for (attribute in products.attributes(product.id)) {
+                    when {
+                        attribute.normalizedValue == token ->
+                            offer(product, 90, "attr_value_exact")
+                        attribute.normalizedValue.contains(token) ->
+                            offer(product, 70, "attr_value_contains")
+                    }
+                }
+                if (product.normalizedName.contains(token)) {
+                    offer(product, 60, "name_spec_token")
                 }
             }
         }
