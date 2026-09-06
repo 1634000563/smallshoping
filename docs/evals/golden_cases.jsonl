@@ -4,7 +4,7 @@
 {"id": "veg-003", "utterance": "刚才那个不要了", "expected_intent": "REMOVE_CURRENT_SALE_ITEM", "expected_tool": "remove_sale_item", "risk": "MEDIUM", "clarification": true}
 {"id": "veg-004", "utterance": "给张姐充200", "expected_intent": "RECHARGE_MEMBER", "expected_tool": "recharge_member", "risk": "MEDIUM", "clarification": true}
 {"id": "veg-005", "utterance": "今天卖了多少钱", "expected_intent": "GET_TODAY_SALES", "expected_tool": "get_today_sales", "risk": "LOW", "clarification": false}
-{"id": "hardware-001", "utterance": "给老张还是上次那些螺丝，再来十个M8的", "expected_intent": "CREATE_SALE_FROM_HISTORY", "expected_tool": "create_sale", "risk": "MEDIUM", "clarification": true}
+{"id": "hardware-001", "utterance": "老张上次那些螺丝再来十盒", "expected_intent": "REORDER_LAST_ITEM", "expected_tool": "reorder_last_item", "risk": "LOW", "clarification": false}
 {"id": "hardware-002", "utterance": "304的M8三十长螺丝来十个", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
 {"id": "hardware-003", "utterance": "老张先记账", "expected_intent": "CHECKOUT_ON_CREDIT", "expected_tool": "record_customer_credit", "risk": "MEDIUM", "clarification": false}
 {"id": "generic-001", "utterance": "土豆改成四十块", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": true}

@@ -84,6 +84,58 @@ class LocalRuleParser : AiProvider {
                 mapOf("customer" to customer, "amount" to fen.toString())
             )
         }
+        // 刚才那个不要了（Task 038：移除最近商品）
+        REMOVE_LAST_PATTERN.find(text)?.let {
+            return AiResponse.ToolCall("remove_sale_item", emptyMap())
+        }
+        // 土豆改价三块五 / 土豆改成四十块（Task 038：改价）
+        CHANGE_PRICE_PATTERN.find(text)?.let { m ->
+            val product = m.groupValues[1].trim()
+            val rawMoney = m.groupValues[2]
+            val fen = if (m.groupValues[3].isNotBlank()) {
+                // 中文块形态：三块五 → 350 分；四十块 → 4000 分（纯整数运算）
+                val yuan = chineseToInt(m.groupValues[3])
+                    ?: return clarification()
+                val jiao = m.groupValues[4].takeIf { it.isNotBlank() }
+                    ?.let { chineseDigit(it) } ?: 0L
+                Math.addExact(Math.multiplyExact(yuan, 100L), Math.multiplyExact(jiao, 10L))
+            } else {
+                // 阿拉伯金额转分（三块五等已在上支处理）
+                val arabic = rawMoney.map { c ->
+                    CHINESE_NUMERALS[c.toString()]?.toString() ?: c.toString()
+                }.joinToString("")
+                MoneyParser.parseYuanToMinor(arabic) ?: return clarification()
+            }
+            return AiResponse.ToolCall(
+                "change_price",
+                mapOf("product" to product, "price" to fen.toString())
+            )
+        }
+        // 张姐还有多少钱（Task 038：会员余额）
+        MEMBER_BALANCE_PATTERN.find(text)?.let { m ->
+            return AiResponse.ToolCall(
+                "get_member_balance",
+                mapOf("member" to m.groupValues[1].trim())
+            )
+        }
+        // 数量前置：两斤半土豆（Task 038，无「卖/来」前缀）
+        LEADING_QUANTITY_PATTERN.find(text)?.let { m ->
+            val num = toArabicNumber(m.groupValues[1]) ?: return clarification()
+            val unit = m.groupValues[2].ifBlank { "斤" }
+            val half = m.groupValues[3]
+            // 纯字符串拼接（无浮点，数据宪法 #2）；带「半」只允许整数前缀
+            val quantity = if (half.isNotBlank()) {
+                if (num.contains('.')) return clarification()
+                "$num.5$unit"
+            } else {
+                "$num$unit"
+            }
+            val product = m.groupValues[4].trim()
+            return AiResponse.ToolCall(
+                "add_sale_item",
+                mapOf("product" to product, "quantity" to quantity)
+            )
+        }
         // 损耗两斤土豆 / 土豆坏了2斤（Task 033 生鲜损耗）
         LOSS_PATTERN.find(text)?.let { m ->
             val quantity = toArabicNumber(m.groupValues[1]) ?: return clarification()
@@ -101,6 +153,25 @@ class LocalRuleParser : AiProvider {
             return AiResponse.ToolCall(
                 "record_loss",
                 mapOf("product" to product, "quantity" to "$quantity$unit")
+            )
+        }
+        // 数量后置：土豆两斤六（Task 038，两斤六=2.6斤；损耗句式优先）
+        TRAILING_QUANTITY_PATTERN.find(text)?.let { m ->
+            val num = toArabicNumber(m.groupValues[2]) ?: return clarification()
+            val unit = m.groupValues[3].ifBlank { "斤" }
+            val fraction = m.groupValues[4]
+            val quantity = if (fraction.isBlank()) {
+                "$num$unit"
+            } else {
+                if (num.contains('.')) return clarification()
+                val fracDigit = if (fraction == "半") "5" else CHINESE_NUMERALS[fraction]?.toString()
+                    ?: return clarification()
+                "$num.$fracDigit$unit"
+            }
+            val product = m.groupValues[1].trim()
+            return AiResponse.ToolCall(
+                "add_sale_item",
+                mapOf("product" to product, "quantity" to quantity)
             )
         }
         // 卖/来 X斤 商品（X 支持阿拉伯数字与单个中文数字：两/二/三…）
@@ -173,6 +244,28 @@ class LocalRuleParser : AiProvider {
         return CHINESE_NUMERALS[raw]?.toString()
     }
 
+    /** 单个中文整数数字（不含「半」）。 */
+    private fun chineseDigit(raw: String): Long? = when (raw) {
+        "一" -> 1L; "两" -> 2L; "二" -> 2L; "三" -> 3L; "四" -> 4L; "五" -> 5L
+        "六" -> 6L; "七" -> 7L; "八" -> 8L; "九" -> 9L
+        else -> null
+    }
+
+    /** 复合中文数字转整数（纯整数运算）：四十→40、十五→15、四十五→45、三→3。 */
+    private fun chineseToInt(raw: String): Long? {
+        if (raw.length == 1) return chineseDigit(raw)
+        return when {
+            raw.length == 2 && raw[1] == '十' ->
+                chineseDigit(raw[0].toString())?.let { it * 10 }
+            raw.length == 2 && raw[0] == '十' ->
+                10 + (chineseDigit(raw[1].toString()) ?: return null)
+            raw.length == 3 && raw[1] == '十' ->
+                (chineseDigit(raw[0].toString()) ?: return null) * 10 +
+                    (chineseDigit(raw[2].toString()) ?: return null)
+            else -> null
+        }
+    }
+
     private companion object {
         val CHECKOUT_PATTERN = Regex("^(?:结账|买单|(微信|支付宝|现金)结账)$")
         val QUANTITY_PATTERN =
@@ -196,6 +289,25 @@ class LocalRuleParser : AiProvider {
         )
         /** 条码：8-14 位纯数字（EAN-13/Code128 常见长度） */
         val BARCODE_PATTERN = Regex("^\\d{8,14}$")
+        /** 移除最近商品：刚才那个不要了 */
+        val REMOVE_LAST_PATTERN = Regex("^(?:刚才那个|刚那个)不要了$")
+        /** 改价：土豆改价三块五 / 土豆改成四十块 / 土豆改价3.5 */
+        val CHANGE_PRICE_PATTERN = Regex(
+            "^(.+?)改(?:价|成)\\s*(([一两二三四五六七八九十]{1,3})块([一两二三四五六七八九十])?|" +
+                "[一两二三四五六七八九十]块[一两二三四五六七八九十]?|\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$"
+        )
+        /** 会员余额：张姐还有多少钱 */
+        val MEMBER_BALANCE_PATTERN = Regex("^(.+?)还有多少钱$")
+        /** 数量前置：两斤半土豆（X量 商品，量可带「半」，单位必填防误吞条码/报价句） */
+        val LEADING_QUANTITY_PATTERN = Regex(
+            "^(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +
+                "(斤|公斤|kg|克|个|盒|米)(半)?\\s*(.+)$"
+        )
+        /** 数量后置：土豆两斤六（商品+数量，尾数字为 0.x 单位） */
+        val TRAILING_QUANTITY_PATTERN = Regex(
+            "^(.+?)([一两二三四五六七八九十]|\\d+(?:\\.\\d+)?)\\s*" +
+                "(斤|公斤|kg|克|个|盒|米)([一二三四五六七八九半])?$"
+        )
         /** 损耗：损耗两斤土豆（单位缺省按斤） */
         val LOSS_PATTERN = Regex(
             "^损耗(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +

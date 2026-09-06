@@ -28,7 +28,7 @@ enum class IntentType(val tool: String, val requiredEntities: Set<String>) {
     CREATE_SALE("create_sale", emptySet()),
     ADD_SALE_ITEM("add_sale_item", setOf("product", "quantity")),
     REORDER_LAST_ITEM("reorder_last_item", setOf("customer", "quantity")),
-    REMOVE_SALE_ITEM("remove_sale_item", setOf("product")),
+    REMOVE_SALE_ITEM("remove_sale_item", emptySet()),
     CHECKOUT_SALE("checkout_sale", setOf("payment_method")),
     CANCEL_SALE("cancel_sale", emptySet()),
     REFUND_SALE("refund_sale", setOf("sale")),

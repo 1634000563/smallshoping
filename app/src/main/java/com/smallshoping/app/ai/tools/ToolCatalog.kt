@@ -117,8 +117,9 @@ object V1ToolCatalog : ToolCatalog {
         )
         write(
             "remove_sale_item", RiskLevel.MEDIUM, ConfirmationPolicy.NONE,
-            setOf("product"),
-            successFields = setOf("status", "item_id")
+            emptySet(), optional = setOf("product"),
+            successFields = setOf("status", "item_id"),
+            errorCodes = setOf("INVALID_ARGUMENT", "NOT_FOUND")
         )
         write(
             "checkout_sale", RiskLevel.MEDIUM, ConfirmationPolicy.PAYMENT_CONFIRMATION,

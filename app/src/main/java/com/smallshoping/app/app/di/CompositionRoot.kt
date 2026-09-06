@@ -14,7 +14,9 @@ import com.smallshoping.app.ai.tools.AddSaleItemHandler
 import com.smallshoping.app.ai.tools.ApplyYesterdayPriceHandler
 import com.smallshoping.app.ai.tools.CheckoutSaleHandler
 import com.smallshoping.app.ai.tools.CreateProductHandler
+import com.smallshoping.app.ai.tools.ChangePriceHandler
 import com.smallshoping.app.ai.tools.RecordCustomerCreditHandler
+import com.smallshoping.app.ai.tools.RemoveSaleItemHandler
 import com.smallshoping.app.ai.tools.SettleCustomerDebtHandler
 import com.smallshoping.app.ai.tools.FindProductByBarcodeHandler
 import com.smallshoping.app.ai.tools.FindProductHandler
@@ -57,6 +59,7 @@ import com.smallshoping.app.domain.report.TodaySalesSummary
 import com.smallshoping.app.domain.catalog.PriceHistoryQuery
 import com.smallshoping.app.domain.sales.AddSaleItemUseCase
 import com.smallshoping.app.domain.sales.CheckoutSaleUseCase
+import com.smallshoping.app.domain.sales.RemoveSaleItemUseCase
 
 /**
  * 组合根：V1 手动装配（不引入 DI 框架）。
@@ -87,6 +90,7 @@ class CompositionRoot {
     /** Domain UseCase 公开暴露：AI 与人工路径必须复用同一实例（Gate A）。 */
     val addSaleItemUseCase = AddSaleItemUseCase(sales, products)
     val checkoutSaleUseCase = CheckoutSaleUseCase(sales)
+    val removeSaleItemUseCase = RemoveSaleItemUseCase(sales)
     val purchases = InMemoryPurchaseRepository(ledger, products)
     val purchaseInUseCase = PurchaseInUseCase(purchases, products, StockQuery(ledger))
 
@@ -146,7 +150,11 @@ class CompositionRoot {
             ),
             ToolRef("settle_customer_debt") to SettleCustomerDebtHandler(
                 customerResolver, receiveCustomerPaymentUseCase, session
-            )
+            ),
+            ToolRef("remove_sale_item") to RemoveSaleItemHandler(
+                removeSaleItemUseCase, contexts, session
+            ),
+            ToolRef("change_price") to ChangePriceHandler(resolver, changeProductPriceUseCase)
         )
     )
 
@@ -161,7 +169,8 @@ class CompositionRoot {
         "checkout_sale", "get_today_sales", "purchase_in",
         "find_member", "get_member_balance", "recharge_member",
         "apply_yesterday_price", "reorder_last_item", "record_loss",
-        "record_customer_credit", "settle_customer_debt"
+        "record_customer_credit", "settle_customer_debt",
+        "remove_sale_item", "change_price"
     )
 
     val inputAdapter = InputAdapter(session = session, allowedTools = allowedTools)
