@@ -1,0 +1,221 @@
+{
+  "version": "1.0",
+  "tools": [
+    {
+      "name": "find_product",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "find_product_by_barcode",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "get_stock",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "get_today_sales",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "get_month_sales",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "get_low_stock",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "find_member",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "get_member_balance",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "find_customer",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "get_customer_debt",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "create_product",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "confirmation": "when_ambiguous_or_new",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "purchase_in",
+      "mode": "write",
+      "risk": "LOW",
+      "confirmation": "none_when_clear",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "create_sale",
+      "mode": "write",
+      "risk": "LOW",
+      "confirmation": "none_when_clear",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "checkout_sale",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "confirmation": "payment_confirmation_required_for_manual_external",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "refund_sale",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "confirmation": "required",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "change_price",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "confirmation": "required_for_large_delta",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "recharge_member",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "confirmation": "required",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "charge_member",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "confirmation": "required_if_ambiguous_or_insufficient",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "record_customer_credit",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "confirmation": "required_if_ambiguous",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "settle_customer_debt",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "confirmation": "required",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "record_loss",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "confirmation": "required",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "adjust_stock",
+      "mode": "write",
+      "risk": "HIGH",
+      "confirmation": "required",
+      "offline": true,
+      "idempotent": true
+    },
+    {
+      "name": "add_sale_item",
+      "mode": "write",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "remove_sale_item",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "offline": true
+    },
+    {
+      "name": "get_current_sale",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "cancel_sale",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "offline": true
+    },
+    {
+      "name": "get_stock_history",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "get_loss_report",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "get_profit_summary",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "create_fulfillment",
+      "mode": "write",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "update_fulfillment_status",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "offline": true
+    },
+    {
+      "name": "get_fulfillment",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    }
+  ]
+}
