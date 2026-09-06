@@ -58,6 +58,8 @@ import com.smallshoping.app.domain.inventory.RecordLossUseCase
 import com.smallshoping.app.domain.inventory.StockQuery
 import com.smallshoping.app.domain.member.MemberFundsQuery
 import com.smallshoping.app.domain.member.RechargeMemberUseCase
+import com.smallshoping.app.domain.migration.CsvExporter
+import com.smallshoping.app.domain.migration.CsvImporter
 import com.smallshoping.app.domain.payment.ConfirmPaymentUseCase
 import com.smallshoping.app.domain.memory.MemoryWritePolicy
 import com.smallshoping.app.domain.purchase.PurchaseInUseCase
@@ -122,6 +124,10 @@ class CompositionRoot(
     /** 日结/经营核对（Task 048）：快照不修改历史销售。 */
     val dayCloses = InMemoryDayCloseRepository()
     val dayCloseService = DayCloseService(sales, payments, dayCloses, ledger)
+
+    /** CSV 导入导出/旧系统迁移（Task 049）。 */
+    val csvExporter = CsvExporter(products, sales, payments, ledger)
+    val csvImporter = CsvImporter(products, ledger)
 
     val customers = InMemoryCustomerRepository()
     val recordCustomerCreditUseCase = RecordCustomerCreditUseCase(customers, ledger)
