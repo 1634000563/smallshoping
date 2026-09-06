@@ -60,7 +60,12 @@ class RecordCustomerCreditHandler(
                     }
                     if (draft.status != com.smallshoping.app.domain.sales.SaleStatus.COMPLETED) {
                         when (checkout(
-                            CheckoutSaleRequest(draft.id, PaymentMethod.CASH, "checkout:${draft.id}:credit")
+                            CheckoutSaleRequest(
+                                saleId = draft.id,
+                                paymentMethod = PaymentMethod.CASH,
+                                idempotencyKey = "checkout:${draft.id}:credit",
+                                customerId = customer.id
+                            )
                         )) {
                             is CheckoutSaleResult.Success, is CheckoutSaleResult.AlreadyCompleted -> Unit
                             is CheckoutSaleResult.SaleNotFound -> return mapOf(

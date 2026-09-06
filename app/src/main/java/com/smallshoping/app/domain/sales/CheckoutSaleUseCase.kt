@@ -11,7 +11,10 @@ data class CheckoutSaleRequest(
     val paymentMethod: PaymentMethod,
     val idempotencyKey: String,
     /** spec 04 §11：默认禁止销售导致负库存；显式开启才允许并记录审计 */
-    val allowNegativeStock: Boolean = false
+    val allowNegativeStock: Boolean = false,
+    /** 结账时绑定客户/会员（spec 03 sale_order，客户历史查询用）。 */
+    val customerId: String? = null,
+    val memberId: String? = null
 )
 
 sealed interface CheckoutSaleResult {
@@ -58,6 +61,8 @@ class CheckoutSaleUseCase(private val sales: SaleRepository) {
             paymentMethod = request.paymentMethod,
             total = total,
             checkoutIdempotencyKey = request.idempotencyKey,
+            customerId = request.customerId,
+            memberId = request.memberId,
             completedAtMillis = System.currentTimeMillis()
         )
         return when (val outcome = sales.completeSale(completed, stockEntries, request.allowNegativeStock)) {

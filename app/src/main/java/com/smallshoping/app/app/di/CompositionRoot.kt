@@ -50,7 +50,10 @@ import com.smallshoping.app.domain.member.MemberFundsQuery
 import com.smallshoping.app.domain.member.RechargeMemberUseCase
 import com.smallshoping.app.domain.memory.MemoryWritePolicy
 import com.smallshoping.app.domain.purchase.PurchaseInUseCase
+import com.smallshoping.app.domain.report.CustomerHistory
+import com.smallshoping.app.domain.report.ProductHistory
 import com.smallshoping.app.domain.report.TodaySalesSummary
+import com.smallshoping.app.domain.catalog.PriceHistoryQuery
 import com.smallshoping.app.domain.sales.AddSaleItemUseCase
 import com.smallshoping.app.domain.sales.CheckoutSaleUseCase
 
@@ -74,6 +77,11 @@ class CompositionRoot {
 
     val changeProductPriceUseCase = ChangeProductPriceUseCase(products)
     val yesterdayPriceQuery = YesterdayPriceQuery(products)
+
+    /** 历史查询（Task 035）：销售事实聚合，只读。 */
+    val customerHistory = CustomerHistory(sales)
+    val productHistory = ProductHistory(sales)
+    val priceHistoryQuery = PriceHistoryQuery(products)
 
     /** Domain UseCase 公开暴露：AI 与人工路径必须复用同一实例（Gate A）。 */
     val addSaleItemUseCase = AddSaleItemUseCase(sales, products)

@@ -40,6 +40,9 @@ data class SaleOrder(
     val paymentMethod: PaymentMethod? = null,
     val total: Money = Money.ZERO,
     val checkoutIdempotencyKey: String? = null,
+    /** 结账时绑定的客户/会员（spec 03 sale_order.customer_id/member_id，Task 035 强化）。 */
+    val customerId: String? = null,
+    val memberId: String? = null,
     val createdAtMillis: Long = System.currentTimeMillis(),
     val completedAtMillis: Long? = null
 ) {
