@@ -23,8 +23,9 @@ class FindMemberHandler(private val resolver: MemberResolver) : ToolHandler {
 
             is Resolution.Ambiguous -> mapOf(
                 "status" to "AMBIGUOUS",
+                // 手机号脱敏（spec 13 §7：展示/回复不得含完整手机号）
                 "members" to resolution.candidates.joinToString("|") {
-                    "${it.value.id}=${it.value.name}@${it.value.phone ?: ""}"
+                    "${it.value.id}=${it.value.name}@${com.smallshoping.app.domain.security.PhoneMasker.mask(it.value.phone) ?: ""}"
                 },
                 "ambiguous_key" to "query",
                 "ambiguous_tool" to "find_member",
@@ -34,7 +35,11 @@ class FindMemberHandler(private val resolver: MemberResolver) : ToolHandler {
 
             is Resolution.Resolved -> {
                 val m = resolution.value
-                mapOf("status" to "OK", "members" to "${m.id}=${m.name}@${m.phone ?: ""}")
+                // 手机号脱敏（spec 13 §7）
+                mapOf(
+                    "status" to "OK",
+                    "members" to "${m.id}=${m.name}@${com.smallshoping.app.domain.security.PhoneMasker.mask(m.phone) ?: ""}"
+                )
             }
         }
     }

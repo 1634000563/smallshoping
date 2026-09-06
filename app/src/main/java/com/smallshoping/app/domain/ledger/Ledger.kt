@@ -32,6 +32,12 @@ interface Ledger {
      * 不一致时抛 [DataIntegrityException]，绝不静默覆盖。
      */
     fun rebuildBalance(scope: LedgerScope): Long
+
+    /**
+     * 数据擦除（spec 13 §5 管理操作，仅 DataWipeService 调用）：
+     * 清空全部流水与余额缓存，擦除后事实不可重建。
+     */
+    fun wipe()
 }
 
 sealed interface AppendResult {

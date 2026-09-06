@@ -65,6 +65,7 @@ import com.smallshoping.app.domain.memory.MemoryWritePolicy
 import com.smallshoping.app.domain.purchase.PurchaseInUseCase
 import com.smallshoping.app.domain.report.CustomerHistory
 import com.smallshoping.app.domain.report.DayCloseService
+import com.smallshoping.app.domain.security.DataWipeService
 import com.smallshoping.app.domain.report.ProductHistory
 import com.smallshoping.app.domain.report.TodaySalesSummary
 import com.smallshoping.app.domain.catalog.PriceHistoryQuery
@@ -154,6 +155,15 @@ class CompositionRoot(
         customers = customers,
         journal = commandJournal,
         storeId = session.storeId
+    )
+
+    /** 数据擦除（Task 050，spec 13 §5）：唯一受控入口，普通 AI 指令不可触发。 */
+    val dataWipeService = DataWipeService(
+        ledger = ledger,
+        journal = commandJournal,
+        wipeSales = { (sales as InMemorySaleRepository).wipe() },
+        wipePayments = { payments.wipe() },
+        wipeDayCloses = { dayCloses.wipe() }
     )
 
     private val addItemHandler = AddSaleItemHandler(resolver, addSaleItemUseCase, contexts, session)

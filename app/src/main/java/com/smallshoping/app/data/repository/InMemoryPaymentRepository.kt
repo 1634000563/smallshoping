@@ -50,4 +50,10 @@ class InMemoryPaymentRepository : PaymentRepository {
         byId[paymentId] = updated
         updated
     }
+
+    /** 数据擦除（spec 13 §5，仅 DataWipeService 调用）。 */
+    fun wipe() = synchronized(lock) {
+        byId.clear()
+        byKey.clear()
+    }
 }

@@ -63,4 +63,10 @@ class InMemorySaleRepository(private val ledger: Ledger) : SaleRepository {
         key?.let { byCheckoutKey[it] = sale }
         CheckoutOutcome.Completed(sale)
     }
+
+    /** 数据擦除（spec 13 §5，仅 DataWipeService 调用）。 */
+    fun wipe() = synchronized(lock) {
+        orders.clear()
+        byCheckoutKey.clear()
+    }
 }

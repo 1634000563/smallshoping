@@ -81,4 +81,10 @@ class InMemoryLedger : Ledger {
     internal fun debugCorruptCachedBalance(scope: LedgerScope, value: Long) = synchronized(lock) {
         cachedBalances[scope] = value
     }
+
+    override fun wipe() = synchronized(lock) {
+        entriesByScope.clear()
+        keysByScope.clear()
+        cachedBalances.clear()
+    }
 }

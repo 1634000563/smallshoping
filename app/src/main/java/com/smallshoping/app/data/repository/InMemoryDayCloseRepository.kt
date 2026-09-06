@@ -26,4 +26,9 @@ class InMemoryDayCloseRepository : DayCloseRepository {
     override fun all(): List<DayClose> = synchronized(lock) {
         byDate.values.toList()
     }
+
+    /** 数据擦除（spec 13 §5，仅 DataWipeService 调用）。 */
+    fun wipe() = synchronized(lock) {
+        byDate.clear()
+    }
 }
