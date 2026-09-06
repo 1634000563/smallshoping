@@ -104,6 +104,36 @@ class EndToEndSliceTest {
     }
 
     @Test
+    fun `黄金语句：进100斤土豆，成本2块8 → 入库与成本更新`() {
+        seedPotato()
+        val reply = root.orchestrator.handle(
+            root.inputAdapter.fromText("进100斤土豆，成本2块8")
+        )
+        assertTrue(reply is OrchestratorReply.Text)
+        assertTrue((reply as OrchestratorReply.Text).text.contains("已入库"))
+        // 账务事实：库存 10斤+100斤=110斤=55000克；成本 280分/斤（无历史库存直接采进价）
+        assertEquals(55000L, stock.stockOf("P-1"))
+        assertEquals(Money(280), root.products.findProductById("P-1")!!.currentCostPrice)
+        // 重复同一句：不重复入库
+        val again = root.orchestrator.handle(root.inputAdapter.fromText("进100斤土豆，成本2块8"))
+        assertTrue((again as OrchestratorReply.Text).text.contains("已经入过库"))
+        assertEquals(55000L, stock.stockOf("P-1"))
+    }
+
+    @Test
+    fun `黄金语句：进价2块8 卖3块8 的改价部分给出明确引导`() {
+        seedPotato()
+        val reply = root.orchestrator.handle(
+            root.inputAdapter.fromText("进100斤土豆，进价2块8，卖3块8")
+        )
+        assertTrue(reply is OrchestratorReply.Text)
+        val text = (reply as OrchestratorReply.Text).text
+        assertTrue(text.contains("已入库"))
+        assertTrue(text.contains("改价请单独说"))
+        assertEquals(55000L, stock.stockOf("P-1"))
+    }
+
+    @Test
     fun `AI 失败不改变任何事实`() {
         seedPotato()
         val failing = AiOrchestrator(

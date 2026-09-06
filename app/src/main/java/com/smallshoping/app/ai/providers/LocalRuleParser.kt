@@ -67,17 +67,33 @@ class LocalRuleParser : AiProvider {
                 mapOf("member" to member, "amount" to fen.toString())
             )
         }
-        // 进 X斤 商品
+        // 进 X斤 商品[，成本/进价 Y]
         PURCHASE_PATTERN.find(text)?.let { m ->
             val rawQuantity = m.groupValues[1]
             val quantity = toArabicNumber(rawQuantity) ?: return clarification()
             val unit = m.groupValues[2].ifBlank { "斤" }
-            val product = m.groupValues[3].trim()
+            val productAndRest = m.groupValues[3].trim()
+            val cost = COST_PATTERN.find(productAndRest)?.groupValues?.get(1)
+            // 剥离成本与售价提示，取剩余首段为商品名
+            val product = productAndRest
+                .replace(COST_PATTERN, "")
+                .replace(SALE_PRICE_HINT_PATTERN, "")
+                .split('，', ',')
+                .firstOrNull { it.isNotBlank() }
+                ?.trim()
+                ?: return clarification()
+            val note = if (SALE_PRICE_HINT_PATTERN.containsMatchIn(productAndRest)) {
+                "售价改价请单独说：${product}改成X块X"
+            } else {
+                null
+            }
             return AiResponse.ToolCall(
                 "purchase_in",
                 mapOf(
                     "product" to product,
-                    "quantity" to "$quantity$unit"
+                    "quantity" to "$quantity$unit",
+                    "cost" to (cost ?: ""),
+                    "note" to (note ?: "")
                 )
             )
         }
@@ -97,6 +113,10 @@ class LocalRuleParser : AiProvider {
             Regex("^(?:卖|来)(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
         val PURCHASE_PATTERN =
             Regex("^进(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
+        /** 成本/进价金额：长形态优先，防止 \d+ 提前截断「2块8」 */
+        val COST_PATTERN = Regex("(?:成本|进价)\\s*(\\d+块\\d?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)")
+        /** 句中附带售价改价要求（V1 单次只执行入库，改价引导单独说），长形态优先 */
+        val SALE_PRICE_HINT_PATTERN = Regex("卖\\s*(\\d+块\\d?|\\d+(?:\\.\\d+)?|\\d+)")
         val CHINESE_NUMERALS = mapOf(
             "一" to 1, "两" to 2, "二" to 2, "三" to 3, "四" to 4, "五" to 5,
             "六" to 6, "七" to 7, "八" to 8, "九" to 9, "十" to 10, "半" to 0.5

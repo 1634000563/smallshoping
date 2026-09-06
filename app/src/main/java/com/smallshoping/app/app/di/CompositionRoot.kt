@@ -14,13 +14,17 @@ import com.smallshoping.app.ai.tools.CreateProductHandler
 import com.smallshoping.app.ai.tools.FindProductHandler
 import com.smallshoping.app.ai.tools.GetContextHandler
 import com.smallshoping.app.ai.tools.GetTodaySalesHandler
+import com.smallshoping.app.ai.tools.PurchaseInHandler
 import com.smallshoping.app.ai.tools.ToolExecutor
 import com.smallshoping.app.ai.tools.ToolRef
 import com.smallshoping.app.ai.tools.V1ToolCatalog
 import com.smallshoping.app.data.ledger.InMemoryLedger
 import com.smallshoping.app.data.repository.InMemoryProductRepository
+import com.smallshoping.app.data.repository.InMemoryPurchaseRepository
 import com.smallshoping.app.data.repository.InMemorySaleRepository
 import com.smallshoping.app.data.repository.InMemorySessionContextStore
+import com.smallshoping.app.domain.inventory.StockQuery
+import com.smallshoping.app.domain.purchase.PurchaseInUseCase
 import com.smallshoping.app.domain.report.TodaySalesSummary
 import com.smallshoping.app.domain.sales.AddSaleItemUseCase
 import com.smallshoping.app.domain.sales.CheckoutSaleUseCase
@@ -46,6 +50,8 @@ class CompositionRoot {
     /** Domain UseCase 公开暴露：AI 与人工路径必须复用同一实例（Gate A）。 */
     val addSaleItemUseCase = AddSaleItemUseCase(sales, products)
     val checkoutSaleUseCase = CheckoutSaleUseCase(sales)
+    val purchases = InMemoryPurchaseRepository(ledger, products)
+    val purchaseInUseCase = PurchaseInUseCase(purchases, products, StockQuery(ledger))
 
     val executor = ToolExecutor(
         catalog = V1ToolCatalog,
@@ -66,7 +72,8 @@ class CompositionRoot {
                 contexts,
                 session
             ),
-            ToolRef("get_today_sales") to GetTodaySalesHandler(TodaySalesSummary(sales))
+            ToolRef("get_today_sales") to GetTodaySalesHandler(TodaySalesSummary(sales)),
+            ToolRef("purchase_in") to PurchaseInHandler(resolver, purchaseInUseCase, session)
         )
     )
 
@@ -74,7 +81,7 @@ class CompositionRoot {
 
     val allowedTools = listOf(
         "find_product", "create_product", "get_context", "add_sale_item",
-        "checkout_sale", "get_today_sales"
+        "checkout_sale", "get_today_sales", "purchase_in"
     )
 
     val inputAdapter = InputAdapter(session = session, allowedTools = allowedTools)
