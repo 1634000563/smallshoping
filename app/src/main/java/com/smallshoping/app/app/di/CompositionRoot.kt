@@ -86,6 +86,7 @@ class CompositionRoot {
     val customerHistory = CustomerHistory(sales)
     val productHistory = ProductHistory(sales)
     val priceHistoryQuery = PriceHistoryQuery(products)
+    val todaySalesSummary = TodaySalesSummary(sales)
 
     /** Domain UseCase 公开暴露：AI 与人工路径必须复用同一实例（Gate A）。 */
     val addSaleItemUseCase = AddSaleItemUseCase(sales, products)
@@ -131,7 +132,7 @@ class CompositionRoot {
                 contexts,
                 session
             ),
-            ToolRef("get_today_sales") to GetTodaySalesHandler(TodaySalesSummary(sales)),
+            ToolRef("get_today_sales") to GetTodaySalesHandler(todaySalesSummary),
             ToolRef("purchase_in") to PurchaseInHandler(resolver, purchaseInUseCase, session),
             ToolRef("find_member") to FindMemberHandler(memberResolver),
             ToolRef("get_member_balance") to GetMemberBalanceHandler(memberResolver, memberFundsQuery),

@@ -142,6 +142,17 @@ class MainActivity : Activity() {
             },
             wrap()
         )
+        manualRow.addView(
+            Button(this).apply {
+                text = "查账"
+                setOnClickListener {
+                    startActivity(
+                        android.content.Intent(this@MainActivity, com.smallshoping.app.feature.report.FallbackActivity::class.java)
+                    )
+                }
+            },
+            wrap()
+        )
         rootLayout.addView(manualRow, matchWidth())
         return rootLayout
     }

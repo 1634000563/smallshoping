@@ -17,6 +17,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 兜底查询页（Task 043）：历史/商品/报表，仅只读 -->
+        <activity
+            android:name=".feature.report.FallbackActivity"
+            android:exported="false" />
     </application>
 
 </manifest>
