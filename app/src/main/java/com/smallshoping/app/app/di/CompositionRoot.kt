@@ -13,6 +13,7 @@ import com.smallshoping.app.ai.tools.CheckoutSaleHandler
 import com.smallshoping.app.ai.tools.CreateProductHandler
 import com.smallshoping.app.ai.tools.FindProductHandler
 import com.smallshoping.app.ai.tools.GetContextHandler
+import com.smallshoping.app.ai.tools.GetTodaySalesHandler
 import com.smallshoping.app.ai.tools.ToolExecutor
 import com.smallshoping.app.ai.tools.ToolRef
 import com.smallshoping.app.ai.tools.V1ToolCatalog
@@ -20,6 +21,7 @@ import com.smallshoping.app.data.ledger.InMemoryLedger
 import com.smallshoping.app.data.repository.InMemoryProductRepository
 import com.smallshoping.app.data.repository.InMemorySaleRepository
 import com.smallshoping.app.data.repository.InMemorySessionContextStore
+import com.smallshoping.app.domain.report.TodaySalesSummary
 import com.smallshoping.app.domain.sales.AddSaleItemUseCase
 import com.smallshoping.app.domain.sales.CheckoutSaleUseCase
 
@@ -59,14 +61,16 @@ class CompositionRoot {
                 CheckoutSaleUseCase(sales),
                 contexts,
                 session
-            )
+            ),
+            ToolRef("get_today_sales") to GetTodaySalesHandler(TodaySalesSummary(sales))
         )
     )
 
     val orchestrator = AiOrchestrator(provider = LocalRuleParser(), executor = executor)
 
     val allowedTools = listOf(
-        "find_product", "create_product", "get_context", "add_sale_item", "checkout_sale"
+        "find_product", "create_product", "get_context", "add_sale_item",
+        "checkout_sale", "get_today_sales"
     )
 
     val inputAdapter = InputAdapter(session = session, allowedTools = allowedTools)

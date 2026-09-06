@@ -28,6 +28,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // minSdk 24/25 使用 java.time 需要脱糖（spec 03 §6 业务日期）
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "17"
@@ -38,4 +40,5 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // Architecture Guard 的代码级自动检查
     testImplementation("com.tngtech.archunit:archunit:1.3.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
 }

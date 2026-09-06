@@ -84,6 +84,26 @@ class EndToEndSliceTest {
     }
 
     @Test
+    fun `黄金语句：今天卖了多少钱 → 汇总真实账务`() {
+        seedPotato()
+        root.orchestrator.handle(root.inputAdapter.fromText("卖两斤土豆"))
+        val checkoutReply = root.orchestrator.handle(root.inputAdapter.fromText("结账")) as OrchestratorReply.NeedsConfirm
+        root.orchestrator.confirm(checkoutReply.requestId, approved = true)
+
+        val reply = root.orchestrator.handle(root.inputAdapter.fromText("今天卖了多少钱"))
+        assertTrue(reply is OrchestratorReply.Text)
+        val text = (reply as OrchestratorReply.Text).text
+        assertTrue(text.contains("760"))
+        assertTrue(text.contains("1"))
+        // 再卖一单后累计
+        root.orchestrator.handle(root.inputAdapter.fromText("卖一斤土豆"))
+        val second = root.orchestrator.handle(root.inputAdapter.fromText("结账")) as OrchestratorReply.NeedsConfirm
+        root.orchestrator.confirm(second.requestId, approved = true)
+        val reply2 = root.orchestrator.handle(root.inputAdapter.fromText("今天卖了多少钱"))
+        assertTrue((reply2 as OrchestratorReply.Text).text.contains("1140")) // 760 + 380
+    }
+
+    @Test
     fun `AI 失败不改变任何事实`() {
         seedPotato()
         val failing = AiOrchestrator(

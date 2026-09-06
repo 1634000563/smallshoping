@@ -31,6 +31,10 @@ class InMemorySaleRepository(private val ledger: Ledger) : SaleRepository {
         orders[id]
     }
 
+    override fun allSales(): List<SaleOrder> = synchronized(lock) {
+        orders.values.toList()
+    }
+
     override fun completeSale(
         sale: SaleOrder,
         stockEntries: List<LedgerEntry>,

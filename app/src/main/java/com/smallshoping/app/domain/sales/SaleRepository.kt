@@ -33,6 +33,9 @@ interface SaleRepository {
 
     fun findById(id: String): SaleOrder?
 
+    /** 全部销售单（报表聚合用）。 */
+    fun allSales(): List<SaleOrder>
+
     /**
      * 原子结账：校验幂等键与库存后，同事务写入销售单与库存流水。
      * 重复提交（同 checkoutIdempotencyKey）返回 [CheckoutOutcome.AlreadyCompleted]。
