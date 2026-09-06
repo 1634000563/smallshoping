@@ -65,3 +65,9 @@
 决定：五部宪法（产品/数据/AI/离线/安全）与 `ARCHITECTURE.md` 冻结为 V1 开发基线（版本 V1.1-codex-ready，2026-09-06，Task 001）。
 原因：后续 60 个 Task 依赖稳定不变的顶层原则；冻结前已对照 AGENTS.md、specs 索引、25-route-redesign、99-gap-review 完成冲突检查，未发现原则级冲突。
 影响：`docs/constitution/*` 与 `ARCHITECTURE.md` 为受保护设计资产，此后任何修改必须走 `docs/guards/CHANGE_CONTROL.md` 流程并新增 ADR，不得在 Task 内静默修改。
+
+## ADR-014 应用标识与最低 Android 版本（Task 002）
+
+决定：applicationId/namespace 定为 `com.smallshoping.app`；minSdk 24（Android 7.0）、targetSdk 35、compileSdk 35。
+原因：规格未定义包名与最低版本，由工程落地时确定。包名跟随仓库名 smallshoping；minSdk 24 在旧设备覆盖（小店老板可能用旧手机）与依赖/维护成本间取平衡。
+影响：包名变更会影响数据库/存储路径与后续发布签名；minSdk 可在 Task 052 真机兼容验证时依据实测重审。
