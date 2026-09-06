@@ -19,11 +19,15 @@ import com.smallshoping.app.ai.tools.ToolExecutor
 import com.smallshoping.app.ai.tools.ToolRef
 import com.smallshoping.app.ai.tools.V1ToolCatalog
 import com.smallshoping.app.data.ledger.InMemoryLedger
+import com.smallshoping.app.data.repository.InMemoryCustomerRepository
 import com.smallshoping.app.data.repository.InMemoryMemberRepository
 import com.smallshoping.app.data.repository.InMemoryProductRepository
 import com.smallshoping.app.data.repository.InMemoryPurchaseRepository
 import com.smallshoping.app.data.repository.InMemorySaleRepository
 import com.smallshoping.app.data.repository.InMemorySessionContextStore
+import com.smallshoping.app.domain.customer.CustomerDebtQuery
+import com.smallshoping.app.domain.customer.ReceiveCustomerPaymentUseCase
+import com.smallshoping.app.domain.customer.RecordCustomerCreditUseCase
 import com.smallshoping.app.domain.inventory.StockQuery
 import com.smallshoping.app.domain.member.MemberFundsQuery
 import com.smallshoping.app.domain.member.RechargeMemberUseCase
@@ -59,6 +63,11 @@ class CompositionRoot {
     val members = InMemoryMemberRepository()
     val rechargeMemberUseCase = RechargeMemberUseCase(members, ledger)
     val memberFundsQuery = MemberFundsQuery(members, ledger)
+
+    val customers = InMemoryCustomerRepository()
+    val recordCustomerCreditUseCase = RecordCustomerCreditUseCase(customers, ledger)
+    val receiveCustomerPaymentUseCase = ReceiveCustomerPaymentUseCase(customers, ledger)
+    val customerDebtQuery = CustomerDebtQuery(customers, ledger)
 
     val executor = ToolExecutor(
         catalog = V1ToolCatalog,
