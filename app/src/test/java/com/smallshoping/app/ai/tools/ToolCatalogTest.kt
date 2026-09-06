@@ -19,7 +19,7 @@ class ToolCatalogTest {
         "record_loss", "adjust_stock", "add_sale_item", "remove_sale_item",
         "get_current_sale", "cancel_sale", "get_stock_history", "get_loss_report",
         "get_profit_summary", "create_fulfillment", "update_fulfillment_status",
-        "get_fulfillment", "get_context", "apply_yesterday_price"
+        "get_fulfillment", "get_context", "apply_yesterday_price", "reorder_last_item"
     )
 
     @Test

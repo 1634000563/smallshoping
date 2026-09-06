@@ -236,6 +236,12 @@
       "confirmation": "required",
       "offline": true,
       "idempotent": true
+    },
+    {
+      "name": "reorder_last_item",
+      "mode": "write",
+      "risk": "LOW",
+      "offline": true
     }
   ]
 }

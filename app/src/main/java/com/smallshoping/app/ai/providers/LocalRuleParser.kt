@@ -42,6 +42,21 @@ class LocalRuleParser : AiProvider {
             }
             return AiResponse.ToolCall("checkout_sale", mapOf("payment_method" to method))
         }
+        // 老张上次那些螺丝再来两盒（Task 027：客户+商品+数量补单）
+        REORDER_PATTERN.find(text)?.let { m ->
+            val customer = m.groupValues[1].trim()
+            val product = m.groupValues[2].trim()
+            val rawQuantity = m.groupValues[3]
+            val unit = m.groupValues[4].ifBlank { "盒" }
+            val quantity = toArabicNumber(rawQuantity) ?: return clarification()
+            return AiResponse.ToolCall(
+                "reorder_last_item",
+                mapOf(
+                    "customer" to customer,
+                    "quantity" to "$quantity$unit"
+                ) + if (product.isNotBlank()) mapOf("product" to product) else emptyMap()
+            )
+        }
         // 卖/来 X斤 商品（X 支持阿拉伯数字与单个中文数字：两/二/三…）
         QUANTITY_PATTERN.find(text)?.let { m ->
             val rawQuantity = m.groupValues[1]
@@ -118,6 +133,11 @@ class LocalRuleParser : AiProvider {
             Regex("^(?:卖|来)(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
         val PURCHASE_PATTERN =
             Regex("^进(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
+        /** 补单：老张上次那些螺丝再来两盒（商品名可省略，由客户记忆兜底） */
+        val REORDER_PATTERN = Regex(
+            "^(.+?)上次(?:那些|那个|的)?\\s*(.*?)再来" +
+                "(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)$"
+        )
         /** 充值金额：长形态优先（块毛>元>小数>整数），防止 \d+ 提前截断「2块8」 */
         val RECHARGE_PATTERN =
             Regex("^给?(.+?)充(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$")

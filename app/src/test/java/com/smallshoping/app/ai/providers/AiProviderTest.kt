@@ -93,6 +93,25 @@ class AiProviderTest {
     }
 
     @Test
+    fun `本地解析：老张上次那些螺丝再来两盒 → reorder_last_item（Task 027）`() {
+        val r = parser.complete(request("老张上次那些螺丝再来两盒")) as AiResponse.ToolCall
+        assertEquals("reorder_last_item", r.toolName)
+        assertEquals("老张", r.entities["customer"])
+        assertEquals("螺丝", r.entities["product"])
+        assertEquals("2盒", r.entities["quantity"])
+        // 商品名省略（客户记忆兜底）
+        val r2 = parser.complete(request("老张上次那些再来两盒")) as AiResponse.ToolCall
+        assertEquals("reorder_last_item", r2.toolName)
+        assertEquals("老张", r2.entities["customer"])
+        assertTrue(r2.entities["product"] == null)
+        assertEquals("2盒", r2.entities["quantity"])
+        // 「上次的」变体
+        val r3 = parser.complete(request("老张上次的螺丝再来一盒")) as AiResponse.ToolCall
+        assertEquals("螺丝", r3.entities["product"])
+        assertEquals("1盒", r3.entities["quantity"])
+    }
+
+    @Test
     fun `无法识别：返回澄清而非猜测`() {
         val r = parser.complete(request("今天天气怎么样"))
         assertTrue(r is AiResponse.Clarification)

@@ -1,6 +1,7 @@
 package com.smallshoping.app.app.di
 
 import com.smallshoping.app.ai.context.SessionContextStore
+import com.smallshoping.app.ai.entityresolution.CustomerResolver
 import com.smallshoping.app.ai.entityresolution.MemberResolver
 import com.smallshoping.app.ai.entityresolution.ProductResolver
 import com.smallshoping.app.ai.orchestrator.AiOrchestrator
@@ -20,6 +21,7 @@ import com.smallshoping.app.ai.tools.GetMemberBalanceHandler
 import com.smallshoping.app.ai.tools.GetTodaySalesHandler
 import com.smallshoping.app.ai.tools.PurchaseInHandler
 import com.smallshoping.app.ai.tools.RechargeMemberHandler
+import com.smallshoping.app.ai.tools.ReorderLastItemHandler
 import com.smallshoping.app.ai.tools.ToolExecutor
 import com.smallshoping.app.ai.tools.ToolRef
 import com.smallshoping.app.ai.tools.V1ToolCatalog
@@ -40,6 +42,7 @@ import com.smallshoping.app.domain.customer.RecordCustomerCreditUseCase
 import com.smallshoping.app.domain.inventory.StockQuery
 import com.smallshoping.app.domain.member.MemberFundsQuery
 import com.smallshoping.app.domain.member.RechargeMemberUseCase
+import com.smallshoping.app.domain.memory.MemoryWritePolicy
 import com.smallshoping.app.domain.purchase.PurchaseInUseCase
 import com.smallshoping.app.domain.report.TodaySalesSummary
 import com.smallshoping.app.domain.sales.AddSaleItemUseCase
@@ -82,9 +85,13 @@ class CompositionRoot {
     val customerDebtQuery = CustomerDebtQuery(customers, ledger)
 
     private val memberResolver = MemberResolver(members)
+    private val customerResolver = CustomerResolver(customers)
 
     /** 店铺长期记忆（spec 06）：只存偏好/别名/规则/引用，不复制账务事实。 */
     val memory = InMemoryMemoryStore()
+    private val memoryWritePolicy = MemoryWritePolicy(memory)
+
+    private val addItemHandler = AddSaleItemHandler(resolver, addSaleItemUseCase, contexts, session)
 
     val executor = ToolExecutor(
         catalog = V1ToolCatalog,
@@ -94,12 +101,7 @@ class CompositionRoot {
             ToolRef("find_product") to FindProductHandler(resolver),
             ToolRef("create_product") to CreateProductHandler(products, session.storeId),
             ToolRef("get_context") to GetContextHandler(contexts, session.deviceId),
-            ToolRef("add_sale_item") to AddSaleItemHandler(
-                resolver,
-                addSaleItemUseCase,
-                contexts,
-                session
-            ),
+            ToolRef("add_sale_item") to addItemHandler,
             ToolRef("checkout_sale") to CheckoutSaleHandler(
                 checkoutSaleUseCase,
                 contexts,
@@ -112,6 +114,10 @@ class CompositionRoot {
             ToolRef("recharge_member") to RechargeMemberHandler(memberResolver, rechargeMemberUseCase, session),
             ToolRef("apply_yesterday_price") to ApplyYesterdayPriceHandler(
                 products, contexts, session, yesterdayPriceQuery, changeProductPriceUseCase
+            ),
+            ToolRef("reorder_last_item") to ReorderLastItemHandler(
+                customerResolver, resolver, addItemHandler,
+                products, memory, memoryWritePolicy
             )
         )
     )
@@ -126,7 +132,7 @@ class CompositionRoot {
         "find_product", "create_product", "get_context", "add_sale_item",
         "checkout_sale", "get_today_sales", "purchase_in",
         "find_member", "get_member_balance", "recharge_member",
-        "apply_yesterday_price"
+        "apply_yesterday_price", "reorder_last_item"
     )
 
     val inputAdapter = InputAdapter(session = session, allowedTools = allowedTools)

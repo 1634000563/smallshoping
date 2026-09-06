@@ -110,6 +110,12 @@ object V1ToolCatalog : ToolCatalog {
             errorCodes = setOf("INVALID_ARGUMENT", "NOT_FOUND", "OUT_OF_STOCK")
         )
         write(
+            "reorder_last_item", RiskLevel.LOW, ConfirmationPolicy.NONE,
+            setOf("customer", "quantity"), optional = setOf("product"),
+            successFields = setOf("status", "item_id"),
+            errorCodes = setOf("INVALID_ARGUMENT", "NOT_FOUND")
+        )
+        write(
             "remove_sale_item", RiskLevel.MEDIUM, ConfirmationPolicy.NONE,
             setOf("product"),
             successFields = setOf("status", "item_id")

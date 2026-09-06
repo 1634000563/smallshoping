@@ -9,6 +9,10 @@ import com.smallshoping.app.core.quantity.Unit
 import com.smallshoping.app.domain.catalog.PriceHistoryEntry
 import com.smallshoping.app.domain.catalog.PriceType
 import com.smallshoping.app.domain.catalog.Product
+import com.smallshoping.app.domain.customer.Customer
+import com.smallshoping.app.domain.memory.MemoryFact
+import com.smallshoping.app.domain.memory.MemoryScopeType
+import com.smallshoping.app.domain.memory.MemorySource
 import com.smallshoping.app.domain.inventory.StockQuery
 import com.smallshoping.app.domain.ledger.IdempotencyKey
 import com.smallshoping.app.domain.ledger.LedgerEntry
@@ -427,6 +431,95 @@ class EndToEndSliceTest {
         )
         assertTrue((done as OrchestratorReply.Text).text.contains("本来就是"))
         assertEquals(1, root.products.priceHistory("P-1").size)
+    }
+
+    private fun seedScrew() {
+        root.products.saveProduct(
+            Product(
+                id = "P-9", storeId = "STORE-1", name = "螺丝", normalizedName = normalize("螺丝"),
+                saleUnit = Unit.BOX, purchaseUnit = Unit.BOX,
+                currentSalePrice = Money(380), currentCostPrice = Money(200)
+            )
+        )
+        root.ledger.append(
+            LedgerEntry(
+                scope = LedgerScope(LedgerScopeType.STOCK, "P-9"),
+                movementType = MovementType.PURCHASE_IN,
+                delta = 100, // V1「盒」按个记账（包装换算 Task 029/030）
+                idempotencyKey = IdempotencyKey("IN-SCREW"),
+                note = "测试入库"
+            )
+        )
+    }
+
+    private fun seedCustomerZhang(id: String = "C-1", name: String = "老张") {
+        root.customers.saveCustomer(
+            Customer(id = id, storeId = "STORE-1", name = name, normalizedName = normalize(name))
+        )
+    }
+
+    @Test
+    fun `黄金语句：老张上次那些螺丝再来两盒 → 自动加项并观察客户习惯（Task 027）`() {
+        seedScrew()
+        seedCustomerZhang()
+        val reply = root.orchestrator.handle(
+            root.inputAdapter.fromText("老张上次那些螺丝再来两盒")
+        )
+        assertTrue(reply is OrchestratorReply.Text)
+        assertTrue((reply as OrchestratorReply.Text).text.contains("已加入"))
+        // 账务事实：草稿单含螺丝 2 个（盒按个记账，V1 占位语义）
+        val saleId = root.contexts.load("DEVICE-1")?.activeSaleOrderId!!
+        val sale = root.sales.findById(saleId)!!
+        assertEquals(1, sale.items.size)
+        assertEquals("螺丝", sale.items[0].productName)
+        assertEquals(2L, sale.items[0].quantity.scaled)
+        // 观察一次未达阈值（3 次），不写长期记忆（spec 06 §3）
+        assertTrue(root.memory.query(MemoryScopeType.CUSTOMER, "C-1").isEmpty())
+    }
+
+    @Test
+    fun `省略商品名：客户记忆兜底，数据库核对商品存在（Task 027）`() {
+        seedScrew()
+        seedCustomerZhang()
+        root.memory.upsert(
+            MemoryFact(
+                scopeType = MemoryScopeType.CUSTOMER, scopeId = "C-1",
+                factType = "usual_product", key = "top", valueJson = "P-9",
+                confidence = 100, source = MemorySource.USER_CONFIRMED
+            )
+        )
+        val reply = root.orchestrator.handle(
+            root.inputAdapter.fromText("老张上次那些再来两盒")
+        )
+        assertTrue(reply is OrchestratorReply.Text)
+        assertTrue((reply as OrchestratorReply.Text).text.contains("已加入"))
+        assertTrue(reply.text.contains("螺丝"))
+    }
+
+    @Test
+    fun `无记忆且省略商品名：明确提示不猜测（Task 027）`() {
+        seedCustomerZhang()
+        val reply = root.orchestrator.handle(
+            root.inputAdapter.fromText("老张上次那些再来两盒")
+        )
+        assertTrue(reply is OrchestratorReply.Text)
+        assertTrue((reply as OrchestratorReply.Text).text.contains("不记得"))
+    }
+
+    @Test
+    fun `客户歧义：追问后报名字重跑（Task 027）`() {
+        seedScrew()
+        seedCustomerZhang(id = "C-1", name = "老张叔")
+        seedCustomerZhang(id = "C-2", name = "老张哥")
+        val first = root.orchestrator.handle(
+            root.inputAdapter.fromText("老张上次那些螺丝再来两盒")
+        )
+        assertTrue(first is OrchestratorReply.Text)
+        assertTrue((first as OrchestratorReply.Text).text.contains("是哪一个"))
+
+        val resolved = root.orchestrator.handle(root.inputAdapter.fromText("老张叔"))
+        assertTrue(resolved is OrchestratorReply.Text)
+        assertTrue((resolved as OrchestratorReply.Text).text.contains("已加入"))
     }
 
     @Test
