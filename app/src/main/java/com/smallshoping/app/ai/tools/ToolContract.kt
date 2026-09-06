@@ -54,8 +54,9 @@ data class ToolContract(
 
     init {
         require(description.isNotBlank()) { "Tool 描述不能为空" }
-        require(inputRequired.isNotEmpty() || inputOptional.isNotEmpty()) {
-            "${ref.fullName} 必须声明入参 Schema"
+        // 入参 Schema 允许为空集（无参工具）；必填键不得与可选键重叠
+        require(inputRequired.intersect(inputOptional).isEmpty()) {
+            "${ref.fullName} 必填键与可选键重叠：${inputRequired.intersect(inputOptional)}"
         }
         require(successResultFields.isNotEmpty()) { "${ref.fullName} 必须声明成功结果字段" }
     }
