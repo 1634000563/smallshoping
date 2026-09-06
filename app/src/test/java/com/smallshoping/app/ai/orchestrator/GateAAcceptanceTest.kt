@@ -72,7 +72,7 @@ class GateAAcceptanceTest {
         assertEquals(4000L, StockQuery(aiRoot.ledger).stockOf("P-1"))
         assertEquals(4000L, StockQuery(manualRoot.ledger).stockOf("P-1"))
 
-        val aiSale = aiRoot.sales.findById(aiRoot.contexts.load("DEVICE-1")!!.activeSaleOrderId!!)!!
+        val aiSale = aiRoot.sales.allSales().first { it.status == SaleStatus.COMPLETED }
         val manualSale = (checked as com.smallshoping.app.domain.sales.CheckoutSaleResult.Success).sale
         assertEquals(SaleStatus.COMPLETED, aiSale.status)
         assertEquals(aiSale.status, manualSale.status)

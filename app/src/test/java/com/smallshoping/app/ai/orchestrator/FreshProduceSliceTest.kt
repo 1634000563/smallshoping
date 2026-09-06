@@ -72,8 +72,7 @@ class FreshProduceSliceTest {
         // 库存：50000 - 1180 - 250 = 48570 克（97.14 斤）
         assertEquals(48570L, stock.stockOf("P-1"))
         // 销售单 COMPLETED，总额 897
-        val saleId = root.contexts.load("DEVICE-1")!!.activeSaleOrderId!!
-        val sale = root.sales.findById(saleId)!!
+        val sale = root.sales.allSales().first { it.status == SaleStatus.COMPLETED }
         assertEquals(SaleStatus.COMPLETED, sale.status)
         assertEquals(Money(897), sale.total)
         // 损耗记录 1 条，成本快照 280×250/500 = 140 分

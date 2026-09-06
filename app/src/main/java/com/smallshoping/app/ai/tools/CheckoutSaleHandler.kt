@@ -39,19 +39,25 @@ class CheckoutSaleHandler(
             )
         )
         return when (result) {
-            is CheckoutSaleResult.Success -> mapOf(
-                "status" to "OK",
-                "sale_id" to result.sale.id,
-                "paid_minor" to result.sale.total.minor.toString(),
-                "message" to "结账完成：共 ${result.sale.total.minor} 分，已按「${result.sale.paymentMethod?.name}」记录，请确认到账"
-            )
+            is CheckoutSaleResult.Success -> {
+                clearActiveSale()
+                mapOf(
+                    "status" to "OK",
+                    "sale_id" to result.sale.id,
+                    "paid_minor" to result.sale.total.minor.toString(),
+                    "message" to "结账完成：共 ${result.sale.total.minor} 分，已按「${result.sale.paymentMethod?.name}」记录，请确认到账"
+                )
+            }
 
-            is CheckoutSaleResult.AlreadyCompleted -> mapOf(
-                "status" to "OK",
-                "sale_id" to result.sale.id,
-                "paid_minor" to result.sale.total.minor.toString(),
-                "message" to "这单已经结过账了：${result.sale.total.minor} 分"
-            )
+            is CheckoutSaleResult.AlreadyCompleted -> {
+                clearActiveSale()
+                mapOf(
+                    "status" to "OK",
+                    "sale_id" to result.sale.id,
+                    "paid_minor" to result.sale.total.minor.toString(),
+                    "message" to "这单已经结过账了：${result.sale.total.minor} 分"
+                )
+            }
 
             is CheckoutSaleResult.InsufficientStock -> mapOf(
                 "status" to "OUT_OF_STOCK", "sale_id" to "", "paid_minor" to "",
@@ -79,5 +85,12 @@ class CheckoutSaleHandler(
         "wechat", "微信" -> PaymentMethod.WECHAT
         "alipay", "支付宝" -> PaymentMethod.ALIPAY
         else -> null
+    }
+
+    /** 结账后清空当前订单上下文（保留最近商品，spec 06 §1）。 */
+    private fun clearActiveSale() {
+        contexts.load(session.deviceId)?.let { context ->
+            contexts.save(context.copy(activeSaleOrderId = null))
+        }
     }
 }

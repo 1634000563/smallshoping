@@ -75,8 +75,7 @@ class EndToEndSliceTest {
 
         // 账务事实：库存 8 斤（4000 克），销售单 COMPLETED，总额 760 分
         assertEquals(4000L, stock.stockOf("P-1"))
-        val saleId = root.contexts.load("DEVICE-1")?.activeSaleOrderId!!
-        val sale = root.sales.findById(saleId)!!
+        val sale = root.sales.allSales().first { it.status == SaleStatus.COMPLETED }
         assertEquals(SaleStatus.COMPLETED, sale.status)
         assertEquals(Money(760), sale.total)
     }
@@ -87,14 +86,14 @@ class EndToEndSliceTest {
         root.orchestrator.handle(root.inputAdapter.fromText("卖两斤土豆"))
         val first = root.orchestrator.handle(root.inputAdapter.fromText("结账")) as OrchestratorReply.NeedsConfirm
         root.orchestrator.confirm(first.requestId, approved = true)
-        // 再次说结账：MEDIUM 风险仍需确认；确认后返回「已结过账」，账务不变
+        // 再次说结账：上下文已清空 → 提示没有未结账的单子，账务不变（不重复扣库存）
         val second = root.orchestrator.handle(root.inputAdapter.fromText("结账"))
         assertTrue(second is OrchestratorReply.NeedsConfirm)
         val secondDone = root.orchestrator.confirm(
             (second as OrchestratorReply.NeedsConfirm).requestId, approved = true
         )
         assertTrue(secondDone is OrchestratorReply.Text)
-        assertTrue((secondDone as OrchestratorReply.Text).text.contains("已经结过账"))
+        assertTrue((secondDone as OrchestratorReply.Text).text.contains("还没有未结账的单子"))
         assertEquals(4000L, stock.stockOf("P-1"))
     }
 
