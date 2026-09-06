@@ -6,6 +6,8 @@ import com.smallshoping.app.core.money.Money
 import com.smallshoping.app.core.quantity.Quantity
 import com.smallshoping.app.core.quantity.QuantityParser
 import com.smallshoping.app.core.quantity.Unit
+import com.smallshoping.app.domain.catalog.PriceHistoryEntry
+import com.smallshoping.app.domain.catalog.PriceType
 import com.smallshoping.app.domain.catalog.Product
 import com.smallshoping.app.domain.inventory.StockQuery
 import com.smallshoping.app.domain.ledger.IdempotencyKey
@@ -309,6 +311,122 @@ class EndToEndSliceTest {
         val leftover = root.orchestrator.handle(root.inputAdapter.fromText("小张姐"))
         assertTrue(leftover is OrchestratorReply.Question)
         assertEquals(0L, root.memberFundsQuery.balanceOf("M-1"))
+    }
+
+    private fun seedYesterdayPrice(productId: String, priceMinor: Long) {
+        root.products.appendPriceHistory(
+            PriceHistoryEntry(
+                id = "H-$productId-$priceMinor", productId = productId,
+                priceType = PriceType.SALE, oldPrice = Money(priceMinor),
+                newPrice = Money(priceMinor), unit = Unit.JIN, source = "test",
+                createdAtMillis = System.currentTimeMillis() - 24L * 60 * 60 * 1000
+            )
+        )
+    }
+
+    @Test
+    fun `黄金语句：还是昨天那个价格 → 上下文取商品 → 确认后改价（Task 026）`() {
+        // 当前价 400，昨日历史价 380
+        root.products.saveProduct(
+            Product(
+                id = "P-1", storeId = "STORE-1", name = "土豆", normalizedName = normalize("土豆"),
+                saleUnit = Unit.JIN, purchaseUnit = Unit.JIN,
+                currentSalePrice = Money(400), currentCostPrice = Money(280)
+            )
+        )
+        root.ledger.append(
+            LedgerEntry(
+                scope = LedgerScope(LedgerScopeType.STOCK, "P-1"),
+                movementType = MovementType.PURCHASE_IN,
+                delta = 5000,
+                idempotencyKey = IdempotencyKey("IN-1"),
+                note = "测试入库"
+            )
+        )
+        seedYesterdayPrice("P-1", 380)
+        // 先建立商品上下文（最近商品 = 土豆）
+        val add = root.orchestrator.handle(root.inputAdapter.fromText("卖两斤土豆"))
+        assertTrue((add as OrchestratorReply.Text).text.contains("已加入"))
+
+        val reply = root.orchestrator.handle(root.inputAdapter.fromText("还是昨天那个价格"))
+        assertTrue("改价属 MEDIUM 风险，必须先确认", reply is OrchestratorReply.NeedsConfirm)
+        val done = root.orchestrator.confirm(
+            (reply as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((done as OrchestratorReply.Text).text.contains("改价"))
+        assertEquals(Money(380), root.products.findProductById("P-1")!!.currentSalePrice)
+    }
+
+    @Test
+    fun `昨日多价格：追问后按所选价格改价（Task 026）`() {
+        root.products.saveProduct(
+            Product(
+                id = "P-1", storeId = "STORE-1", name = "土豆", normalizedName = normalize("土豆"),
+                saleUnit = Unit.JIN, purchaseUnit = Unit.JIN,
+                currentSalePrice = Money(400), currentCostPrice = Money(280)
+            )
+        )
+        seedYesterdayPrice("P-1", 380)
+        seedYesterdayPrice("P-1", 390)
+        root.orchestrator.handle(root.inputAdapter.fromText("卖两斤土豆"))
+
+        val reply = root.orchestrator.handle(root.inputAdapter.fromText("还是昨天那个价格"))
+        assertTrue(reply is OrchestratorReply.NeedsConfirm)
+        val ambiguous = root.orchestrator.confirm(
+            (reply as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((ambiguous as OrchestratorReply.Text).text.contains("用哪一个"))
+
+        // 老板报价格 → 重跑原意图（仍需确认）
+        val resolved = root.orchestrator.handle(root.inputAdapter.fromText("380"))
+        assertTrue(resolved is OrchestratorReply.NeedsConfirm)
+        val done = root.orchestrator.confirm(
+            (resolved as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((done as OrchestratorReply.Text).text.contains("改价"))
+        assertEquals(Money(380), root.products.findProductById("P-1")!!.currentSalePrice)
+    }
+
+    @Test
+    fun `无上下文或昨日无记录：明确提示不猜测（Task 026）`() {
+        // 无商品上下文
+        val first = root.orchestrator.handle(root.inputAdapter.fromText("还是昨天那个价格"))
+        assertTrue(first is OrchestratorReply.NeedsConfirm)
+        val firstDone = root.orchestrator.confirm(
+            (first as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((firstDone as OrchestratorReply.Text).text.contains("先告诉我"))
+
+        // 有上下文但昨日无价格记录
+        seedPotato()
+        root.orchestrator.handle(root.inputAdapter.fromText("卖两斤土豆"))
+        val second = root.orchestrator.handle(root.inputAdapter.fromText("还是昨天那个价格"))
+        assertTrue(second is OrchestratorReply.NeedsConfirm)
+        val secondDone = root.orchestrator.confirm(
+            (second as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((secondDone as OrchestratorReply.Text).text.contains("没有价格记录"))
+    }
+
+    @Test
+    fun `已是昨天价格：提示未改动且不追加历史（Task 026）`() {
+        root.products.saveProduct(
+            Product(
+                id = "P-1", storeId = "STORE-1", name = "土豆", normalizedName = normalize("土豆"),
+                saleUnit = Unit.JIN, purchaseUnit = Unit.JIN,
+                currentSalePrice = Money(380), currentCostPrice = Money(280)
+            )
+        )
+        seedYesterdayPrice("P-1", 380)
+        root.orchestrator.handle(root.inputAdapter.fromText("卖两斤土豆"))
+
+        val reply = root.orchestrator.handle(root.inputAdapter.fromText("还是昨天那个价格"))
+        assertTrue(reply is OrchestratorReply.NeedsConfirm)
+        val done = root.orchestrator.confirm(
+            (reply as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((done as OrchestratorReply.Text).text.contains("本来就是"))
+        assertEquals(1, root.products.priceHistory("P-1").size)
     }
 
     @Test

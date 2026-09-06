@@ -60,11 +60,15 @@ class AddSaleItemHandler(
                 )
                 when (val result = addItem(request)) {
                     is AddSaleItemResult.Success -> {
-                        // 上下文增强：记住当前草稿单
-                        val updated = context?.copy(activeSaleOrderId = result.sale.id)
+                        // 上下文增强：记住当前草稿单与最近商品（spec 06 §1）
+                        val updated = context?.copy(
+                            activeSaleOrderId = result.sale.id,
+                            lastProductId = resolution.value.id
+                        )
                             ?: SessionContext(
                                 deviceSessionId = session.deviceId,
                                 activeSaleOrderId = result.sale.id,
+                                lastProductId = resolution.value.id,
                                 expiresAtMillis = System.currentTimeMillis() + 30 * 60 * 1000L
                             )
                         contexts.save(updated)

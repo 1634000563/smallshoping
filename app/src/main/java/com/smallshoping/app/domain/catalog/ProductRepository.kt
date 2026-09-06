@@ -27,4 +27,14 @@ interface ProductRepository {
 
     /** 某商品全部价格历史（按时间追加顺序）。 */
     fun priceHistory(productId: String): List<PriceHistoryEntry>
+
+    /**
+     * 原子改价：更新当前售价并追加价格历史（只追加不覆盖，spec 02）。
+     * 商品不存在返回 null。
+     */
+    fun applyPriceChange(
+        productId: String,
+        newPrice: com.smallshoping.app.core.money.Money,
+        history: PriceHistoryEntry
+    ): Product?
 }

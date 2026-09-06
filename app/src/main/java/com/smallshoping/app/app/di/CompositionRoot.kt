@@ -10,6 +10,7 @@ import com.smallshoping.app.ai.providers.LocalRuleParser
 import com.smallshoping.app.ai.risk.ConfirmationGate
 import com.smallshoping.app.ai.risk.RiskGate
 import com.smallshoping.app.ai.tools.AddSaleItemHandler
+import com.smallshoping.app.ai.tools.ApplyYesterdayPriceHandler
 import com.smallshoping.app.ai.tools.CheckoutSaleHandler
 import com.smallshoping.app.ai.tools.CreateProductHandler
 import com.smallshoping.app.ai.tools.FindProductHandler
@@ -31,6 +32,8 @@ import com.smallshoping.app.data.repository.InMemoryProductRepository
 import com.smallshoping.app.data.repository.InMemoryPurchaseRepository
 import com.smallshoping.app.data.repository.InMemorySaleRepository
 import com.smallshoping.app.data.repository.InMemorySessionContextStore
+import com.smallshoping.app.domain.catalog.ChangeProductPriceUseCase
+import com.smallshoping.app.domain.catalog.YesterdayPriceQuery
 import com.smallshoping.app.domain.customer.CustomerDebtQuery
 import com.smallshoping.app.domain.customer.ReceiveCustomerPaymentUseCase
 import com.smallshoping.app.domain.customer.RecordCustomerCreditUseCase
@@ -59,6 +62,9 @@ class CompositionRoot {
     val session = StoreSession(storeId = "STORE-1", deviceId = "DEVICE-1")
 
     private val resolver = ProductResolver(products)
+
+    val changeProductPriceUseCase = ChangeProductPriceUseCase(products)
+    val yesterdayPriceQuery = YesterdayPriceQuery(products)
 
     /** Domain UseCase 公开暴露：AI 与人工路径必须复用同一实例（Gate A）。 */
     val addSaleItemUseCase = AddSaleItemUseCase(sales, products)
@@ -103,7 +109,10 @@ class CompositionRoot {
             ToolRef("purchase_in") to PurchaseInHandler(resolver, purchaseInUseCase, session),
             ToolRef("find_member") to FindMemberHandler(memberResolver),
             ToolRef("get_member_balance") to GetMemberBalanceHandler(memberResolver, memberFundsQuery),
-            ToolRef("recharge_member") to RechargeMemberHandler(memberResolver, rechargeMemberUseCase, session)
+            ToolRef("recharge_member") to RechargeMemberHandler(memberResolver, rechargeMemberUseCase, session),
+            ToolRef("apply_yesterday_price") to ApplyYesterdayPriceHandler(
+                products, contexts, session, yesterdayPriceQuery, changeProductPriceUseCase
+            )
         )
     )
 
@@ -116,7 +125,8 @@ class CompositionRoot {
     val allowedTools = listOf(
         "find_product", "create_product", "get_context", "add_sale_item",
         "checkout_sale", "get_today_sales", "purchase_in",
-        "find_member", "get_member_balance", "recharge_member"
+        "find_member", "get_member_balance", "recharge_member",
+        "apply_yesterday_price"
     )
 
     val inputAdapter = InputAdapter(session = session, allowedTools = allowedTools)

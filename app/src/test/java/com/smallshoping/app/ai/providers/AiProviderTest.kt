@@ -78,6 +78,21 @@ class AiProviderTest {
     }
 
     @Test
+    fun `本地解析：还是昨天那个价格 → apply_yesterday_price（Task 026）`() {
+        val r = parser.complete(request("还是昨天那个价格")) as AiResponse.ToolCall
+        assertEquals("apply_yesterday_price", r.toolName)
+        assertTrue(r.entities.isEmpty())
+        val r2 = parser.complete(request("用昨天的价格")) as AiResponse.ToolCall
+        assertEquals("apply_yesterday_price", r2.toolName)
+        // 含「昨天」但无「价」不误触发（如「今天卖了多少钱」已由上一分支处理）
+        assertTrue(parser.complete(request("昨天卖了多少钱")) is AiResponse.ToolCall)
+        assertEquals(
+            "get_today_sales",
+            (parser.complete(request("昨天卖了多少钱")) as AiResponse.ToolCall).toolName
+        )
+    }
+
+    @Test
     fun `无法识别：返回澄清而非猜测`() {
         val r = parser.complete(request("今天天气怎么样"))
         assertTrue(r is AiResponse.Clarification)

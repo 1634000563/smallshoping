@@ -135,6 +135,12 @@ object V1ToolCatalog : ToolCatalog {
             successFields = setOf("status", "product_id", "old_price_minor", "new_price_minor")
         )
         write(
+            "apply_yesterday_price", RiskLevel.MEDIUM, ConfirmationPolicy.REQUIRED,
+            emptySet(), optional = setOf("price"),
+            successFields = setOf("status", "product_id", "new_price_minor"),
+            errorCodes = setOf("INVALID_ARGUMENT", "NOT_FOUND")
+        )
+        write(
             "recharge_member", RiskLevel.MEDIUM, ConfirmationPolicy.REQUIRED,
             setOf("member", "amount"),
             successFields = setOf("status", "member_id", "balance_after_minor")

@@ -216,6 +216,26 @@
       "mode": "read",
       "risk": "LOW",
       "offline": true
+    },
+    {
+      "name": "get_top_products",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "get_context",
+      "mode": "read",
+      "risk": "LOW",
+      "offline": true
+    },
+    {
+      "name": "apply_yesterday_price",
+      "mode": "write",
+      "risk": "MEDIUM",
+      "confirmation": "required",
+      "offline": true,
+      "idempotent": true
     }
   ]
 }

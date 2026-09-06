@@ -24,6 +24,10 @@ class LocalRuleParser : AiProvider {
             text.contains("卖了多少") || text.contains("卖了多少钱") || text == "今天卖了多少" ->
                 AiResponse.ToolCall("get_today_sales", emptyMap())
 
+            // 「还是昨天那个价格」「用昨天的价格」（Task 026：商品取会话上下文，价格查昨日历史）
+            text.contains("昨天") && text.contains("价") ->
+                AiResponse.ToolCall("apply_yesterday_price", emptyMap())
+
             else -> parseWithEntity(text)
         }
     }

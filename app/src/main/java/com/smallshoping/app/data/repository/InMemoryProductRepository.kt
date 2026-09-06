@@ -57,6 +57,19 @@ class InMemoryProductRepository : ProductRepository {
         priceHistoryList[productId]?.toList() ?: emptyList()
     }
 
+    override fun applyPriceChange(
+        productId: String,
+        newPrice: com.smallshoping.app.core.money.Money,
+        history: PriceHistoryEntry
+    ): Product? = synchronized(lock) {
+        val product = byId[productId] ?: return null
+        val updated = product.copy(currentSalePrice = newPrice)
+        byId[productId] = updated
+        byName[updated.normalizedName] = updated
+        priceHistoryList.getOrPut(productId) { ArrayList() }.add(history)
+        updated
+    }
+
     /** 追加价格历史（只追加，不修改）。 */
     fun appendPriceHistory(entry: PriceHistoryEntry) = synchronized(lock) {
         require(byId.containsKey(entry.productId)) { "价格历史指向的商品不存在：${entry.productId}" }
