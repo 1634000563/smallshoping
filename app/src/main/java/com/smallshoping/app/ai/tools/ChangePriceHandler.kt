@@ -58,13 +58,26 @@ class ChangePriceHandler(
                 when (val result = changePrice(
                     ChangePriceRequest(product.id, Money(fen), source = "boss_speech")
                 )) {
-                    is ChangePriceResult.Success -> mapOf(
-                        "status" to "OK",
-                        "product_id" to product.id,
-                        "old_price_minor" to result.oldPriceMinor.toString(),
-                        "new_price_minor" to result.newPriceMinor.toString(),
-                        "message" to "「${product.name}」改价：${result.oldPriceMinor} 分 → ${result.newPriceMinor} 分"
-                    )
+                    is ChangePriceResult.Success -> {
+                        // 大额变化警示（spec 08 §8：土豆从4块改成40块应触发异常提示）
+                        val warning = if (
+                            result.oldPriceMinor > 0 &&
+                            (result.newPriceMinor >= result.oldPriceMinor * 10 ||
+                                result.oldPriceMinor >= result.newPriceMinor * 10)
+                        ) {
+                            "⚠️ 价格变化很大，请留意："
+                        } else {
+                            ""
+                        }
+                        mapOf(
+                            "status" to "OK",
+                            "product_id" to product.id,
+                            "old_price_minor" to result.oldPriceMinor.toString(),
+                            "new_price_minor" to result.newPriceMinor.toString(),
+                            "message" to "$warning「${product.name}」改价：" +
+                                "${result.oldPriceMinor} 分 → ${result.newPriceMinor} 分"
+                        )
+                    }
 
                     is ChangePriceResult.Unchanged -> mapOf(
                         "status" to "OK",

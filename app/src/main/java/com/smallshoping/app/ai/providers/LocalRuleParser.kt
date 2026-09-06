@@ -21,6 +21,12 @@ class LocalRuleParser : AiProvider {
     override fun complete(request: GatewayRequest): AiResponse {
         val text = normalize(request.inputText)
         return when {
+            // 删除类语句：V1 确定性拒绝（spec 04 事实只追加不删除；spec 08 §8 禁止物理删除）
+            text.contains("删除") || text.contains("删掉") || text.contains("抹掉") ->
+                AiResponse.FinalText(
+                    "账务事实只追加不删除，V1 不提供删除。如需修正请说「损耗/调整/退款」。"
+                )
+
             text.contains("卖了多少") || text.contains("卖了多少钱") || text == "今天卖了多少" ->
                 AiResponse.ToolCall("get_today_sales", emptyMap())
 

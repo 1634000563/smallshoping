@@ -52,7 +52,16 @@ class AiOrchestrator(
             }
         }
 
-        // 2) 常规路径
+        // 2) 口语确认/拒绝（spec 08 §9）：是/确定 确认最近请求；不/取消 拒绝
+        val normalized = com.smallshoping.app.core.common.normalize(request.inputText)
+        if (normalized in CONFIRM_WORDS) {
+            executor.pendingConfirmationId()?.let { return confirm(it, approved = true) }
+        }
+        if (normalized in REJECT_WORDS) {
+            executor.pendingConfirmationId()?.let { return confirm(it, approved = false) }
+        }
+
+        // 3) 常规路径
         val response = provider.complete(request)
         return when (response) {
             is AiResponse.FinalText -> OrchestratorReply.Text(response.text)
@@ -160,5 +169,13 @@ class AiOrchestrator(
     private companion object {
         /** 追问有效期：2 分钟不回答自动作废。 */
         const val QUESTION_TTL_MILLIS = 2L * 60 * 1000
+
+        /** 口语确认词（spec 08 §9：是/确定/执行）。 */
+        val CONFIRM_WORDS = setOf(
+            "是", "是的", "对", "对的", "确定", "好的", "好", "确认", "执行", "嗯", "行", "可以"
+        )
+
+        /** 口语拒绝词。 */
+        val REJECT_WORDS = setOf("不", "不用", "不要", "取消", "算了", "别", "不行", "不要了")
     }
 }

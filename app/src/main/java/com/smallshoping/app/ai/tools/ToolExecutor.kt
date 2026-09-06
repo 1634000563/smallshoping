@@ -68,6 +68,9 @@ class ToolExecutor(
         }
     }
 
+    /** 最近一个待确认请求的 requestId（无挂起返回 null；spec 08 §9 口语确认用）。 */
+    fun pendingConfirmationId(): String? = confirmationGate.latestWaiting()?.requestId
+
     /**
      * 老板确认（approved=true）后执行挂起的意图；
      * 只能确认最近一个待确认请求（由 [ConfirmationGate] 保证）。
