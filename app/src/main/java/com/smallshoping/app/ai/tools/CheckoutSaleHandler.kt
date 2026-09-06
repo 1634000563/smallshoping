@@ -24,18 +24,29 @@ class CheckoutSaleHandler(
         val method = parseMethod(entities.getValue("payment_method"))
             ?: return mapOf(
                 "status" to "INVALID_ARGUMENT", "sale_id" to "", "paid_minor" to "",
-                "message" to "支付方式只支持：现金 / 微信 / 支付宝"
+                "message" to "支付方式只支持：现金 / 微信 / 支付宝 / 会员余额"
             )
-        val saleId = contexts.load(session.deviceId)?.activeSaleOrderId
+        val context = contexts.load(session.deviceId)
+        val saleId = context?.activeSaleOrderId
             ?: return mapOf(
                 "status" to "NO_ACTIVE_SALE", "sale_id" to "", "paid_minor" to "",
                 "message" to "还没有未结账的单子，先说「卖两斤土豆」这样的句子吧"
             )
+        // 会员余额支付：会员取会话上下文最近会员（Task 047）
+        val memberId = if (method == PaymentMethod.MEMBER) {
+            context.lastMemberId ?: return mapOf(
+                "status" to "INVALID_ARGUMENT", "sale_id" to "", "paid_minor" to "",
+                "message" to "用会员余额结账要先报会员（如：给张姐充200）"
+            )
+        } else {
+            null
+        }
         val result = checkout(
             CheckoutSaleRequest(
                 saleId = saleId,
                 paymentMethod = method,
-                idempotencyKey = "checkout:$saleId"
+                idempotencyKey = "checkout:$saleId",
+                memberId = memberId
             )
         )
         return when (result) {
@@ -77,6 +88,16 @@ class CheckoutSaleHandler(
                 "status" to "CONFLICT", "sale_id" to "", "paid_minor" to "",
                 "message" to "重复提交冲突，请确认后重试"
             )
+
+            CheckoutSaleResult.MemberNotFound -> mapOf(
+                "status" to "NOT_FOUND", "sale_id" to "", "paid_minor" to "",
+                "message" to "会员不存在"
+            )
+
+            is CheckoutSaleResult.InsufficientBalance -> mapOf(
+                "status" to "INVALID_ARGUMENT", "sale_id" to "", "paid_minor" to "",
+                "message" to "会员余额只有 ${result.balanceMinor} 分，这单要 ${result.requiredMinor} 分，请换支付方式"
+            )
         }
     }
 
@@ -84,6 +105,7 @@ class CheckoutSaleHandler(
         "cash", "现金" -> PaymentMethod.CASH
         "wechat", "微信" -> PaymentMethod.WECHAT
         "alipay", "支付宝" -> PaymentMethod.ALIPAY
+        "member", "会员", "会员余额" -> PaymentMethod.MEMBER
         else -> null
     }
 

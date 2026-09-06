@@ -84,6 +84,14 @@ class RecordCustomerCreditHandler(
                                 "status" to "INVALID_ARGUMENT", "customer_id" to "",
                                 "debt_after_minor" to "", "message" to "库存不足，结不了账"
                             )
+                            is CheckoutSaleResult.MemberNotFound -> return mapOf(
+                                "status" to "NOT_FOUND", "customer_id" to "",
+                                "debt_after_minor" to "", "message" to "会员不存在"
+                            )
+                            is CheckoutSaleResult.InsufficientBalance -> return mapOf(
+                                "status" to "INVALID_ARGUMENT", "customer_id" to "",
+                                "debt_after_minor" to "", "message" to "会员余额不足，结不了账"
+                            )
                         }
                     }
                     draftTotal

@@ -48,6 +48,7 @@ class LocalRuleParser : AiProvider {
             val method = when (m.groupValues[1]) {
                 "微信" -> "wechat"
                 "支付宝" -> "alipay"
+                "会员" -> "member"
                 else -> "cash"
             }
             return AiResponse.ToolCall("checkout_sale", mapOf("payment_method" to method))
@@ -273,7 +274,7 @@ class LocalRuleParser : AiProvider {
     }
 
     private companion object {
-        val CHECKOUT_PATTERN = Regex("^(?:结账|买单|(微信|支付宝|现金)结账)$")
+        val CHECKOUT_PATTERN = Regex("^(?:结账|买单|(微信|支付宝|现金|会员)结账)$")
         val QUANTITY_PATTERN =
             Regex("^(?:卖|来)(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
         val PURCHASE_PATTERN =

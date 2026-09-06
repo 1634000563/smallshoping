@@ -41,6 +41,7 @@ import com.smallshoping.app.data.repository.InMemoryLossRepository
 import com.smallshoping.app.data.repository.InMemoryDisambiguationStore
 import com.smallshoping.app.data.repository.InMemoryMemberRepository
 import com.smallshoping.app.data.repository.InMemoryMemoryStore
+import com.smallshoping.app.data.repository.InMemoryPaymentRepository
 import com.smallshoping.app.data.repository.InMemoryProductRepository
 import com.smallshoping.app.data.repository.InMemoryPurchaseRepository
 import com.smallshoping.app.data.repository.InMemorySaleRepository
@@ -56,6 +57,7 @@ import com.smallshoping.app.domain.inventory.RecordLossUseCase
 import com.smallshoping.app.domain.inventory.StockQuery
 import com.smallshoping.app.domain.member.MemberFundsQuery
 import com.smallshoping.app.domain.member.RechargeMemberUseCase
+import com.smallshoping.app.domain.payment.ConfirmPaymentUseCase
 import com.smallshoping.app.domain.memory.MemoryWritePolicy
 import com.smallshoping.app.domain.purchase.PurchaseInUseCase
 import com.smallshoping.app.domain.report.CustomerHistory
@@ -98,7 +100,6 @@ class CompositionRoot(
 
     /** Domain UseCase 公开暴露：AI 与人工路径必须复用同一实例（Gate A）。 */
     val addSaleItemUseCase = AddSaleItemUseCase(sales, products)
-    val checkoutSaleUseCase = CheckoutSaleUseCase(sales)
     val removeSaleItemUseCase = RemoveSaleItemUseCase(sales)
     val purchases = InMemoryPurchaseRepository(ledger, products)
     val purchaseInUseCase = PurchaseInUseCase(purchases, products, StockQuery(ledger))
@@ -110,6 +111,11 @@ class CompositionRoot(
     val members = InMemoryMemberRepository()
     val rechargeMemberUseCase = RechargeMemberUseCase(members, ledger)
     val memberFundsQuery = MemberFundsQuery(members, ledger)
+
+    /** 支付记录（Task 047）：结账写支付记录，会员余额消费同批落账。 */
+    val payments = InMemoryPaymentRepository()
+    val checkoutSaleUseCase = CheckoutSaleUseCase(sales, ledger, members, payments)
+    val confirmPaymentUseCase = ConfirmPaymentUseCase(payments)
 
     val customers = InMemoryCustomerRepository()
     val recordCustomerCreditUseCase = RecordCustomerCreditUseCase(customers, ledger)
@@ -160,7 +166,9 @@ class CompositionRoot(
             ToolRef("purchase_in") to PurchaseInHandler(resolver, purchaseInUseCase, session),
             ToolRef("find_member") to FindMemberHandler(memberResolver),
             ToolRef("get_member_balance") to GetMemberBalanceHandler(memberResolver, memberFundsQuery),
-            ToolRef("recharge_member") to RechargeMemberHandler(memberResolver, rechargeMemberUseCase, session),
+            ToolRef("recharge_member") to RechargeMemberHandler(
+                memberResolver, rechargeMemberUseCase, session, contexts
+            ),
             ToolRef("apply_yesterday_price") to ApplyYesterdayPriceHandler(
                 products, contexts, session, yesterdayPriceQuery, changeProductPriceUseCase
             ),

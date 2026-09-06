@@ -91,7 +91,8 @@ class GetMemberBalanceHandler(
 class RechargeMemberHandler(
     private val resolver: MemberResolver,
     private val recharge: RechargeMemberUseCase,
-    private val session: StoreSession
+    private val session: StoreSession,
+    private val contexts: com.smallshoping.app.ai.context.SessionContextStore
 ) : ToolHandler {
 
     override fun execute(entities: Map<String, String>): Map<String, String> {
@@ -133,12 +134,23 @@ class RechargeMemberHandler(
                         idempotencyKey = "recharge:${member.id}:$fen"
                     )
                 )) {
-                    is RechargeMemberResult.Success -> mapOf(
-                        "status" to "OK",
-                        "member_id" to member.id,
-                        "balance_after_minor" to result.balanceAfterMinor.toString(),
-                        "message" to "已充值：${member.name} ${fen} 分，余额 ${result.balanceAfterMinor} 分"
-                    )
+                    is RechargeMemberResult.Success -> {
+                        // 上下文增强：记住最近会员（会员余额结账用，spec 06 §1）
+                        val context = contexts.load(session.deviceId)
+                        val updated = context?.copy(lastMemberId = member.id)
+                            ?: com.smallshoping.app.ai.context.SessionContext(
+                                deviceSessionId = session.deviceId,
+                                lastMemberId = member.id,
+                                expiresAtMillis = System.currentTimeMillis() + 30 * 60 * 1000L
+                            )
+                        contexts.save(updated)
+                        mapOf(
+                            "status" to "OK",
+                            "member_id" to member.id,
+                            "balance_after_minor" to result.balanceAfterMinor.toString(),
+                            "message" to "已充值：${member.name} ${fen} 分，余额 ${result.balanceAfterMinor} 分"
+                        )
+                    }
 
                     is RechargeMemberResult.AlreadyCompleted -> mapOf(
                         "status" to "OK",

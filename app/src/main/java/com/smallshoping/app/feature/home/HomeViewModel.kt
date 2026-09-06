@@ -131,6 +131,16 @@ class HomeViewModel(
 
             CheckoutSaleResult.Conflict ->
                 HomeUiState(UiKind.ERROR, "重复提交冲突，请重试", currentTask = currentTask())
+
+            CheckoutSaleResult.MemberNotFound ->
+                HomeUiState(UiKind.ERROR, "会员不存在", currentTask = currentTask())
+
+            is CheckoutSaleResult.InsufficientBalance ->
+                HomeUiState(
+                    UiKind.ERROR,
+                    "会员余额只有 ${result.balanceMinor} 分，这单要 ${result.requiredMinor} 分",
+                    currentTask = currentTask()
+                )
         }
     }
 
