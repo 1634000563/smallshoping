@@ -33,7 +33,7 @@ V1「AI 原生小店操作系统」（Android，生鲜/五金/便利店通用底
 - `docs/schemas/tool-catalog.json`、`docs/prompts/system.md`、`docs/evals/golden_cases.jsonl` — Tool 契约、Prompt 基线、AI 黄金集
 - `templates/AGENTS/` — 各层（domain/data/ai/ui/device）局部规则模板，创建对应目录时放入
 - `codex/tasks/` — 单任务文件，固定格式：目标/为什么现在做/前置依赖/必读文档/实现范围/不做什么/AI·Domain·Data 边界/契约/测试要求/验收标准
-- `git.txt` — 仓库地址 https://github.com/1634000563/smallshoping.git（Task 001 已完成工作区初始化：git init、origin 已配置、基线已提交；尚未 push，需要用户凭据）
+- `git.txt` — 仓库地址 https://github.com/1634000563/smallshoping.git（Task 001 已完成工作区初始化并推送 main；仓库原「小小商城静态站点」备份于 `archive/static-site` 分支）
 
 ## 构建与测试
 
