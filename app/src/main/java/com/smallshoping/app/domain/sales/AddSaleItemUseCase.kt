@@ -34,11 +34,14 @@ class AddSaleItemUseCase(
     operator fun invoke(request: AddSaleItemRequest): AddSaleItemResult {
         val product = products.findProductById(request.productId)
             ?: return AddSaleItemResult.ProductNotFound
-        if (request.quantity.unit != product.saleUnit) {
-            return AddSaleItemResult.UnitMismatch(product.saleUnit, request.quantity.unit)
+        // 数量必须为销售单位维度的基本单位刻度（如 MASS→克），
+        // 单价按「每 1 个 saleUnit」折算（380分/斤 × 1180克 / 500）
+        val baseUnit = Unit.baseUnitFor(product.saleUnit.dimension)
+        if (request.quantity.unit != baseUnit) {
+            return AddSaleItemResult.UnitMismatch(baseUnit, request.quantity.unit)
         }
         val unitPrice = product.currentSalePrice
-        val subtotal = unitPrice * request.quantity.scaled
+        val subtotal = unitPrice.timesRatio(request.quantity.scaled, product.saleUnit.scale)
         val item = SaleItem(
             productId = product.id,
             productName = product.name,

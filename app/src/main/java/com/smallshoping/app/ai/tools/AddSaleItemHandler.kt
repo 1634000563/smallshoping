@@ -26,11 +26,12 @@ class AddSaleItemHandler(
 
     override fun execute(entities: Map<String, String>): Map<String, String> {
         val query = entities.getValue("product")
-        val quantity = QuantityParser.parse(entities.getValue("quantity"))
+        val parsedQuantity = QuantityParser.parse(entities.getValue("quantity"))
             ?: return mapOf(
                 "status" to "INVALID_ARGUMENT", "item_id" to "",
-                "message" to "数量看不懂（如：两斤土豆、3个螺丝）"
+                "message" to "数量看不懂（如：两斤土豆、2.36斤、3个螺丝）"
             )
+        val quantity = parsedQuantity.quantity
 
         return when (val resolution = resolver.resolve(query)) {
             is Resolution.NotFound -> mapOf(
@@ -68,7 +69,7 @@ class AddSaleItemHandler(
                             "status" to "OK",
                             "item_id" to item.id,
                             "sale_id" to result.sale.id,
-                            "message" to "已加入：${item.productName} ${item.quantity.scaled}${item.quantity.unit.name}，小计 ${item.subtotal.minor} 分"
+                            "message" to "已加入：${item.productName} ${parsedQuantity.displayText}，小计 ${item.subtotal.minor} 分"
                         )
                     }
 

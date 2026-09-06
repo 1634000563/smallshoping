@@ -36,7 +36,7 @@ class EndToEndSliceTest {
             LedgerEntry(
                 scope = LedgerScope(LedgerScopeType.STOCK, "P-1"),
                 movementType = MovementType.PURCHASE_IN,
-                delta = 10,
+                delta = 5000, // 10斤（基本单位：克）
                 idempotencyKey = IdempotencyKey("IN-1"),
                 note = "测试入库"
             )
@@ -58,8 +58,8 @@ class EndToEndSliceTest {
         assertTrue(done is OrchestratorReply.Text)
         assertTrue((done as OrchestratorReply.Text).text.contains("结账完成"))
 
-        // 账务事实：库存 8 斤，销售单 COMPLETED，总额 760 分
-        assertEquals(8L, stock.stockOf("P-1"))
+        // 账务事实：库存 8 斤（4000 克），销售单 COMPLETED，总额 760 分
+        assertEquals(4000L, stock.stockOf("P-1"))
         val saleId = root.contexts.load("DEVICE-1")?.activeSaleOrderId!!
         val sale = root.sales.findById(saleId)!!
         assertEquals(SaleStatus.COMPLETED, sale.status)
@@ -80,7 +80,7 @@ class EndToEndSliceTest {
         )
         assertTrue(secondDone is OrchestratorReply.Text)
         assertTrue((secondDone as OrchestratorReply.Text).text.contains("已经结过账"))
-        assertEquals(8L, stock.stockOf("P-1"))
+        assertEquals(4000L, stock.stockOf("P-1"))
     }
 
     @Test
@@ -115,7 +115,7 @@ class EndToEndSliceTest {
         val reply = failing.handle(root.inputAdapter.fromText("卖两斤土豆"))
         assertTrue(reply is OrchestratorReply.Text)
         assertTrue((reply as OrchestratorReply.Text).text.contains("暂时不可用"))
-        assertEquals(10L, stock.stockOf("P-1")) // 库存未动
+        assertEquals(5000L, stock.stockOf("P-1")) // 库存未动
         assertTrue(root.sales.findDraft("whatever") == null)
     }
 
@@ -134,18 +134,24 @@ class EndToEndSliceTest {
         val text = (reply as OrchestratorReply.Text).text
         // 精确命中「土豆」无歧义，但单位不一致 → 明确提示
         assertTrue(text.contains("斤") || text.contains("已加入"))
-        assertEquals(10L, stock.stockOf("P-1"))
+        assertEquals(5000L, stock.stockOf("P-1"))
     }
 
     @Test
-    fun `数量解析：中英文单位与中文数字`() {
-        assertEquals(Quantity(2, Unit.JIN), QuantityParser.parse("2斤"))
-        assertEquals(Quantity(2, Unit.JIN), QuantityParser.parse("两斤"))
-        assertEquals(Quantity(500, Unit.GRAM), QuantityParser.parse("500克"))
-        assertEquals(Quantity(1, Unit.KILOGRAM), QuantityParser.parse("1kg"))
-        assertEquals(Quantity(3, Unit.PIECE), QuantityParser.parse("3个"))
-        assertEquals(null, QuantityParser.parse("2.5斤")) // 小数留 Task 018
-        assertEquals(null, QuantityParser.parse("半斤"))
+    fun `数量解析：中英文单位、中文数字与小数称重（基本单位刻度）`() {
+        assertEquals(Quantity(1000, Unit.GRAM), QuantityParser.parse("2斤")?.quantity)
+        assertEquals(Quantity(1000, Unit.GRAM), QuantityParser.parse("两斤")?.quantity)
+        assertEquals(Quantity(500, Unit.GRAM), QuantityParser.parse("500克")?.quantity)
+        assertEquals(Quantity(1000, Unit.GRAM), QuantityParser.parse("1kg")?.quantity)
+        assertEquals(Quantity(3, Unit.PIECE), QuantityParser.parse("3个")?.quantity)
+        // 称重精度（Task 018）：有理数精确换算，无浮点
+        assertEquals(Quantity(1180, Unit.GRAM), QuantityParser.parse("2.36斤")?.quantity)
+        assertEquals(Quantity(1250, Unit.GRAM), QuantityParser.parse("2.5斤")?.quantity)
+        assertEquals(Quantity(250, Unit.GRAM), QuantityParser.parse("半斤")?.quantity)
+        assertEquals(Quantity(1250, Unit.GRAM), QuantityParser.parse("1.25kg")?.quantity)
+        // 超精度/不合法 → 拒绝（不猜测）
+        assertEquals(null, QuantityParser.parse("2.333斤"))
+        assertEquals(null, QuantityParser.parse("1.5个"))
         assertEquals(null, QuantityParser.parse("斤"))
     }
 }

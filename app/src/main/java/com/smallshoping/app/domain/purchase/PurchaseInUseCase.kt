@@ -42,8 +42,10 @@ class PurchaseInUseCase(
     operator fun invoke(request: PurchaseInRequest): PurchaseInResult {
         val product = products.findProductById(request.productId)
             ?: return PurchaseInResult.ProductNotFound
-        if (request.quantity.unit != product.purchaseUnit) {
-            return PurchaseInResult.UnitMismatch(product.purchaseUnit, request.quantity.unit)
+        // 数量必须为采购单位维度的基本单位刻度（MASS→克）
+        val baseUnit = Unit.baseUnitFor(product.purchaseUnit.dimension)
+        if (request.quantity.unit != baseUnit) {
+            return PurchaseInResult.UnitMismatch(baseUnit, request.quantity.unit)
         }
         request.unitCost?.let { require(!it.isNegative) { "进价不能为负" } }
 

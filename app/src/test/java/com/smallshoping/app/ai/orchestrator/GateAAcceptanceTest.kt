@@ -41,7 +41,7 @@ class GateAAcceptanceTest {
             LedgerEntry(
                 scope = LedgerScope(LedgerScopeType.STOCK, "P-1"),
                 movementType = MovementType.PURCHASE_IN,
-                delta = 10,
+                delta = 5000, // 10斤（基本单位：克）
                 idempotencyKey = IdempotencyKey("IN-1"),
                 note = "测试入库"
             )
@@ -61,7 +61,7 @@ class GateAAcceptanceTest {
         // —— 人工路径：不经任何 AI 组件，直接调同一 Domain UseCase ——
         val manualRoot = newRoot()
         val added = manualRoot.addSaleItemUseCase(
-            AddSaleItemRequest("STORE-1", null, "P-1", Quantity(2, Unit.JIN))
+            AddSaleItemRequest("STORE-1", null, "P-1", Quantity(1000, Unit.GRAM)) // 2斤
         ) as com.smallshoping.app.domain.sales.AddSaleItemResult.Success
         val checked = manualRoot.checkoutSaleUseCase(
             CheckoutSaleRequest(added.sale.id, PaymentMethod.CASH, "manual-ck-1")
@@ -69,8 +69,8 @@ class GateAAcceptanceTest {
         assertTrue(checked is com.smallshoping.app.domain.sales.CheckoutSaleResult.Success)
 
         // —— 两条路径的账务事实必须逐项一致 ——
-        assertEquals(8L, StockQuery(aiRoot.ledger).stockOf("P-1"))
-        assertEquals(8L, StockQuery(manualRoot.ledger).stockOf("P-1"))
+        assertEquals(4000L, StockQuery(aiRoot.ledger).stockOf("P-1"))
+        assertEquals(4000L, StockQuery(manualRoot.ledger).stockOf("P-1"))
 
         val aiSale = aiRoot.sales.findById(aiRoot.contexts.load("DEVICE-1")!!.activeSaleOrderId!!)!!
         val manualSale = (checked as com.smallshoping.app.domain.sales.CheckoutSaleResult.Success).sale
@@ -94,13 +94,13 @@ class GateAAcceptanceTest {
         val root = newRoot()
         // 完全绕开编排器与 Provider：Domain 直接可营业
         val added = root.addSaleItemUseCase(
-            AddSaleItemRequest("STORE-1", null, "P-1", Quantity(2, Unit.JIN))
+            AddSaleItemRequest("STORE-1", null, "P-1", Quantity(1000, Unit.GRAM)) // 2斤
         ) as com.smallshoping.app.domain.sales.AddSaleItemResult.Success
         val checked = root.checkoutSaleUseCase(
             CheckoutSaleRequest(added.sale.id, PaymentMethod.CASH, "offline-ck-1")
         )
         assertTrue(checked is com.smallshoping.app.domain.sales.CheckoutSaleResult.Success)
-        assertEquals(8L, StockQuery(root.ledger).stockOf("P-1"))
+        assertEquals(4000L, StockQuery(root.ledger).stockOf("P-1"))
     }
 
     @Test
