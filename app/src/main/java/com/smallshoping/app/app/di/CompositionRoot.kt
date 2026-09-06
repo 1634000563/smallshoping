@@ -38,6 +38,7 @@ import com.smallshoping.app.data.ledger.InMemoryLedger
 import com.smallshoping.app.data.repository.InMemoryCommandJournal
 import com.smallshoping.app.data.repository.InMemoryCustomerRepository
 import com.smallshoping.app.data.repository.InMemoryLossRepository
+import com.smallshoping.app.data.repository.InMemoryDayCloseRepository
 import com.smallshoping.app.data.repository.InMemoryDisambiguationStore
 import com.smallshoping.app.data.repository.InMemoryMemberRepository
 import com.smallshoping.app.data.repository.InMemoryMemoryStore
@@ -61,6 +62,7 @@ import com.smallshoping.app.domain.payment.ConfirmPaymentUseCase
 import com.smallshoping.app.domain.memory.MemoryWritePolicy
 import com.smallshoping.app.domain.purchase.PurchaseInUseCase
 import com.smallshoping.app.domain.report.CustomerHistory
+import com.smallshoping.app.domain.report.DayCloseService
 import com.smallshoping.app.domain.report.ProductHistory
 import com.smallshoping.app.domain.report.TodaySalesSummary
 import com.smallshoping.app.domain.catalog.PriceHistoryQuery
@@ -116,6 +118,10 @@ class CompositionRoot(
     val payments = InMemoryPaymentRepository()
     val checkoutSaleUseCase = CheckoutSaleUseCase(sales, ledger, members, payments)
     val confirmPaymentUseCase = ConfirmPaymentUseCase(payments)
+
+    /** 日结/经营核对（Task 048）：快照不修改历史销售。 */
+    val dayCloses = InMemoryDayCloseRepository()
+    val dayCloseService = DayCloseService(sales, payments, dayCloses, ledger)
 
     val customers = InMemoryCustomerRepository()
     val recordCustomerCreditUseCase = RecordCustomerCreditUseCase(customers, ledger)
