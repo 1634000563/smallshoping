@@ -1,6 +1,7 @@
 package com.smallshoping.app.ai.providers
 
 import com.smallshoping.app.core.common.normalize
+import com.smallshoping.app.core.money.MoneyParser
 
 /**
  * 本地规则解析 Provider（spec 05 §5：简单命令优先本地 parser）。
@@ -58,10 +59,10 @@ class LocalRuleParser : AiProvider {
                 mapOf("query" to m.groupValues[1].trim())
             )
         }
-        // 给 X 充 Y 元
-        Regex("^给(.+?)充(\\d+(?:\\.\\d+)?)\\s*元?$").find(text)?.let { m ->
+        // 给 X 充 Y 元（「给」可省略；金额支持 200 / 200元 / 2块8）
+        RECHARGE_PATTERN.find(text)?.let { m ->
             val member = m.groupValues[1].trim()
-            val fen = yuanToFen(m.groupValues[2]) ?: return clarification()
+            val fen = MoneyParser.parseYuanToMinor(m.groupValues[2]) ?: return clarification()
             return AiResponse.ToolCall(
                 "recharge_member",
                 mapOf("member" to member, "amount" to fen.toString())
@@ -113,6 +114,9 @@ class LocalRuleParser : AiProvider {
             Regex("^(?:卖|来)(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
         val PURCHASE_PATTERN =
             Regex("^进(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
+        /** 充值金额：长形态优先（块毛>元>小数>整数），防止 \d+ 提前截断「2块8」 */
+        val RECHARGE_PATTERN =
+            Regex("^给?(.+?)充(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$")
         /** 成本/进价金额：长形态优先，防止 \d+ 提前截断「2块8」 */
         val COST_PATTERN = Regex("(?:成本|进价)\\s*(\\d+块\\d?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)")
         /** 句中附带售价改价要求（V1 单次只执行入库，改价引导单独说），长形态优先 */
@@ -125,21 +129,4 @@ class LocalRuleParser : AiProvider {
 
     private fun clarification() =
         AiResponse.Clarification("没听懂这句，请换种说法或告诉我：商品、数量、要做什么。")
-
-    /**
-     * 元字符串转分（Long），全程无 Float/Double（数据宪法 #2）：
-     * 仅支持最多两位小数，如 "200"→20000、"2.5"→250。
-     */
-    private fun yuanToFen(yuanStr: String): Long? {
-        val parts = yuanStr.split(".")
-        if (parts.size > 2) return null
-        val yuan = parts[0].toLongOrNull() ?: return null
-        val fenPart = if (parts.size == 2) {
-            if (parts[1].length > 2 || !parts[1].all { it.isDigit() }) return null
-            parts[1].padEnd(2, '0')
-        } else {
-            "00"
-        }
-        return Math.addExact(Math.multiplyExact(yuan, 100L), fenPart.toLong())
-    }
 }

@@ -24,6 +24,15 @@ class EndToEndSliceTest {
     private val root = CompositionRoot()
     private val stock = StockQuery(root.ledger)
 
+    private fun seedMember() {
+        root.members.saveMember(
+            com.smallshoping.app.domain.member.Member(
+                id = "M-1", storeId = "STORE-1", name = "张姐",
+                normalizedName = normalize("张姐")
+            )
+        )
+    }
+
     private fun seedPotato() {
         root.products.saveProduct(
             Product(
@@ -131,6 +140,90 @@ class EndToEndSliceTest {
         assertTrue(text.contains("已入库"))
         assertTrue(text.contains("改价请单独说"))
         assertEquals(55000L, stock.stockOf("P-1"))
+    }
+
+    @Test
+    fun `黄金语句：给张姐充200 → 确认后余额由流水派生（Task 022）`() {
+        seedMember()
+        val reply = root.orchestrator.handle(root.inputAdapter.fromText("给张姐充200"))
+        assertTrue("充值是 MEDIUM 风险，必须先确认", reply is OrchestratorReply.NeedsConfirm)
+        val done = root.orchestrator.confirm(
+            (reply as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue(done is OrchestratorReply.Text)
+        assertTrue((done as OrchestratorReply.Text).text.contains("已充值"))
+        assertEquals(20000L, root.memberFundsQuery.balanceOf("M-1"))
+        // 账务事实：一条 MEMBER_RECHARGE 流水
+        val entries = root.ledger.entries(LedgerScope(LedgerScopeType.MEMBER, "M-1"))
+        assertEquals(1, entries.size)
+        assertEquals(MovementType.MEMBER_RECHARGE, entries[0].movementType)
+    }
+
+    @Test
+    fun `重复充值：确认两次只入账一次（Task 022）`() {
+        seedMember()
+        val first = root.orchestrator.handle(root.inputAdapter.fromText("给张姐充200"))
+        root.orchestrator.confirm((first as OrchestratorReply.NeedsConfirm).requestId, approved = true)
+        val second = root.orchestrator.handle(root.inputAdapter.fromText("给张姐充200"))
+        assertTrue(second is OrchestratorReply.NeedsConfirm)
+        val done = root.orchestrator.confirm(
+            (second as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((done as OrchestratorReply.Text).text.contains("已经充过"))
+        assertEquals(20000L, root.memberFundsQuery.balanceOf("M-1"))
+        assertEquals(1, root.ledger.entries(LedgerScope(LedgerScopeType.MEMBER, "M-1")).size)
+    }
+
+    @Test
+    fun `充值歧义：多候选不猜测，账务不变（Task 022）`() {
+        // 「小张」前缀同时命中两人 → 必须追问，不能猜（产品宪法 #9）
+        root.members.saveMember(
+            com.smallshoping.app.domain.member.Member(
+                id = "M-1", storeId = "STORE-1", name = "小张姐",
+                normalizedName = normalize("小张姐")
+            )
+        )
+        root.members.saveMember(
+            com.smallshoping.app.domain.member.Member(
+                id = "M-2", storeId = "STORE-1", name = "小张哥",
+                normalizedName = normalize("小张哥")
+            )
+        )
+        val reply = root.orchestrator.handle(root.inputAdapter.fromText("给小张充200"))
+        assertTrue(reply is OrchestratorReply.NeedsConfirm)
+        val done = root.orchestrator.confirm(
+            (reply as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((done as OrchestratorReply.Text).text.contains("是哪一个"))
+        assertEquals(0L, root.memberFundsQuery.balanceOf("M-1"))
+    }
+
+    @Test
+    fun `充值会员不存在：明确提示且无流水（Task 022）`() {
+        val reply = root.orchestrator.handle(root.inputAdapter.fromText("给李姐充200"))
+        assertTrue(reply is OrchestratorReply.NeedsConfirm)
+        val done = root.orchestrator.confirm(
+            (reply as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((done as OrchestratorReply.Text).text.contains("没找到"))
+        assertTrue(root.ledger.entries(LedgerScope(LedgerScopeType.MEMBER, "李姐")).isEmpty())
+    }
+
+    @Test
+    fun `省略「给」同样可充值；拒绝确认则不执行（Task 022）`() {
+        seedMember()
+        val short = root.orchestrator.handle(root.inputAdapter.fromText("张姐充200"))
+        assertTrue(short is OrchestratorReply.NeedsConfirm)
+        root.orchestrator.confirm((short as OrchestratorReply.NeedsConfirm).requestId, approved = true)
+        assertEquals(20000L, root.memberFundsQuery.balanceOf("M-1"))
+
+        val rejected = root.orchestrator.handle(root.inputAdapter.fromText("张姐充50"))
+        assertTrue(rejected is OrchestratorReply.NeedsConfirm)
+        val rejectedDone = root.orchestrator.confirm(
+            (rejected as OrchestratorReply.NeedsConfirm).requestId, approved = false
+        )
+        assertTrue((rejectedDone as OrchestratorReply.Text).text.contains("已取消"))
+        assertEquals(20000L, root.memberFundsQuery.balanceOf("M-1"))
     }
 
     @Test

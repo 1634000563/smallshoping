@@ -1,6 +1,7 @@
 package com.smallshoping.app.app.di
 
 import com.smallshoping.app.ai.context.SessionContextStore
+import com.smallshoping.app.ai.entityresolution.MemberResolver
 import com.smallshoping.app.ai.entityresolution.ProductResolver
 import com.smallshoping.app.ai.orchestrator.AiOrchestrator
 import com.smallshoping.app.ai.orchestrator.InputAdapter
@@ -13,8 +14,11 @@ import com.smallshoping.app.ai.tools.CheckoutSaleHandler
 import com.smallshoping.app.ai.tools.CreateProductHandler
 import com.smallshoping.app.ai.tools.FindProductHandler
 import com.smallshoping.app.ai.tools.GetContextHandler
+import com.smallshoping.app.ai.tools.FindMemberHandler
+import com.smallshoping.app.ai.tools.GetMemberBalanceHandler
 import com.smallshoping.app.ai.tools.GetTodaySalesHandler
 import com.smallshoping.app.ai.tools.PurchaseInHandler
+import com.smallshoping.app.ai.tools.RechargeMemberHandler
 import com.smallshoping.app.ai.tools.ToolExecutor
 import com.smallshoping.app.ai.tools.ToolRef
 import com.smallshoping.app.ai.tools.V1ToolCatalog
@@ -69,6 +73,8 @@ class CompositionRoot {
     val receiveCustomerPaymentUseCase = ReceiveCustomerPaymentUseCase(customers, ledger)
     val customerDebtQuery = CustomerDebtQuery(customers, ledger)
 
+    private val memberResolver = MemberResolver(members)
+
     val executor = ToolExecutor(
         catalog = V1ToolCatalog,
         riskGate = RiskGate(),
@@ -89,7 +95,10 @@ class CompositionRoot {
                 session
             ),
             ToolRef("get_today_sales") to GetTodaySalesHandler(TodaySalesSummary(sales)),
-            ToolRef("purchase_in") to PurchaseInHandler(resolver, purchaseInUseCase, session)
+            ToolRef("purchase_in") to PurchaseInHandler(resolver, purchaseInUseCase, session),
+            ToolRef("find_member") to FindMemberHandler(memberResolver),
+            ToolRef("get_member_balance") to GetMemberBalanceHandler(memberResolver, memberFundsQuery),
+            ToolRef("recharge_member") to RechargeMemberHandler(memberResolver, rechargeMemberUseCase, session)
         )
     )
 
@@ -97,7 +106,8 @@ class CompositionRoot {
 
     val allowedTools = listOf(
         "find_product", "create_product", "get_context", "add_sale_item",
-        "checkout_sale", "get_today_sales", "purchase_in"
+        "checkout_sale", "get_today_sales", "purchase_in",
+        "find_member", "get_member_balance", "recharge_member"
     )
 
     val inputAdapter = InputAdapter(session = session, allowedTools = allowedTools)

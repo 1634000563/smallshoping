@@ -58,6 +58,18 @@ class AiProviderTest {
     }
 
     @Test
+    fun `本地解析：省略「给」与块毛金额（Task 022）`() {
+        val r = parser.complete(request("张姐充200")) as AiResponse.ToolCall
+        assertEquals("recharge_member", r.toolName)
+        assertEquals("张姐", r.entities["member"])
+        assertEquals("20000", r.entities["amount"])
+        val r2 = parser.complete(request("给张姐充2块8")) as AiResponse.ToolCall
+        assertEquals("280", r2.entities["amount"])
+        val r3 = parser.complete(request("给张姐充2块8毛")) as AiResponse.ToolCall
+        assertEquals("280", r3.entities["amount"])
+    }
+
+    @Test
     fun `本地解析：进100斤土豆 → purchase_in`() {
         val r = parser.complete(request("进100斤土豆")) as AiResponse.ToolCall
         assertEquals("purchase_in", r.toolName)
