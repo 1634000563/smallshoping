@@ -60,6 +60,10 @@ class InMemoryLedger : Ledger {
         entriesByScope[scope]?.toList() ?: emptyList()
     }
 
+    override fun allScopes(): Set<LedgerScope> = synchronized(lock) {
+        entriesByScope.keys.toSet()
+    }
+
     override fun balance(scope: LedgerScope): Long = synchronized(lock) {
         cachedBalances[scope] ?: 0L
     }

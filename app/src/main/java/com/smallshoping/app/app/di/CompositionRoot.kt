@@ -32,8 +32,10 @@ import com.smallshoping.app.ai.tools.RecordLossHandler
 import com.smallshoping.app.ai.tools.ReorderLastItemHandler
 import com.smallshoping.app.ai.tools.ToolExecutor
 import com.smallshoping.app.ai.tools.ToolRef
+import com.smallshoping.app.ai.tools.ReplayRunner
 import com.smallshoping.app.ai.tools.V1ToolCatalog
 import com.smallshoping.app.data.ledger.InMemoryLedger
+import com.smallshoping.app.data.repository.InMemoryCommandJournal
 import com.smallshoping.app.data.repository.InMemoryCustomerRepository
 import com.smallshoping.app.data.repository.InMemoryLossRepository
 import com.smallshoping.app.data.repository.InMemoryDisambiguationStore
@@ -120,12 +122,18 @@ class CompositionRoot(
     val memory = InMemoryMemoryStore()
     private val memoryWritePolicy = MemoryWritePolicy(memory)
 
+    /** 命令日志与重放（Task 045 崩溃恢复）。 */
+    val commandJournal = InMemoryCommandJournal()
+    val replayRunner: ReplayRunner by lazy { ReplayRunner(commandJournal, executor) }
+    val crashRecovery = com.smallshoping.app.domain.journal.CrashRecoveryService(ledger)
+
     private val addItemHandler = AddSaleItemHandler(resolver, addSaleItemUseCase, contexts, session)
 
     val executor = ToolExecutor(
         catalog = V1ToolCatalog,
         riskGate = RiskGate(),
         confirmationGate = ConfirmationGate(),
+        journal = commandJournal,
         handlers = mapOf(
             ToolRef("find_product") to FindProductHandler(resolver),
             ToolRef("find_product_by_barcode") to FindProductByBarcodeHandler(products),

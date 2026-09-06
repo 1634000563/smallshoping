@@ -24,6 +24,9 @@ interface Ledger {
     /** 当前余额（由流水派生的快照，允许有缓存实现）。 */
     fun balance(scope: LedgerScope): Long
 
+    /** 全部已建账范围（崩溃恢复/重建校验遍历用，Task 045）。 */
+    fun allScopes(): Set<LedgerScope>
+
     /**
      * 从流水重算余额并与现有值核对（spec 04 §13）。
      * 不一致时抛 [DataIntegrityException]，绝不静默覆盖。

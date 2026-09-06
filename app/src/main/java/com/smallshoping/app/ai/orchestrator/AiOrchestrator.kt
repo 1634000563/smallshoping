@@ -8,6 +8,7 @@ import com.smallshoping.app.ai.providers.AiResponse
 import com.smallshoping.app.ai.providers.GatewayRequest
 import com.smallshoping.app.ai.tools.ToolExecutor
 import com.smallshoping.app.ai.tools.ToolResult
+import com.smallshoping.app.ai.tools.decodeEntities
 
 /** 编排层给界面/老板的回复。 */
 sealed interface OrchestratorReply {
@@ -145,13 +146,6 @@ class AiOrchestrator(
             if (idx <= 0) null else CandidateRef(part.substring(0, idx), part.substring(idx + 1))
         }.ifEmpty { null }
     }
-
-    /** 解析「key=value&key=value」意图参数编码。 */
-    private fun decodeEntities(raw: String): Map<String, String> =
-        raw.split("&").mapNotNull { part ->
-            val idx = part.indexOf('=')
-            if (idx <= 0) null else part.substring(0, idx) to part.substring(idx + 1)
-        }.toMap()
 
     private fun toReply(result: ToolResult): OrchestratorReply = when (result) {
         is ToolResult.Success ->

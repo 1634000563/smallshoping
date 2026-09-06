@@ -6,6 +6,8 @@ import com.smallshoping.app.ai.orchestrator.SchemaValidationException
 import com.smallshoping.app.ai.risk.ConfirmationGate
 import com.smallshoping.app.ai.risk.RiskDecision
 import com.smallshoping.app.ai.risk.RiskGate
+import com.smallshoping.app.domain.journal.CommandJournal
+import com.smallshoping.app.domain.journal.CommandRecord
 
 /** 工具执行结果：只包含事实与明确状态，绝不虚构成功（spec 07 §4）。 */
 sealed interface ToolResult {
@@ -41,7 +43,9 @@ class ToolExecutor(
     private val catalog: ToolCatalog,
     private val riskGate: RiskGate,
     private val confirmationGate: ConfirmationGate,
-    private val handlers: Map<ToolRef, ToolHandler>
+    private val handlers: Map<ToolRef, ToolHandler>,
+    /** 命令日志（Task 045）：写工具成功后记录，崩溃后按日志重放。 */
+    private val journal: CommandJournal? = null
 ) {
 
     fun execute(intent: Intent): ToolResult {
@@ -72,6 +76,21 @@ class ToolExecutor(
     fun pendingConfirmationId(): String? = confirmationGate.latestWaiting()?.requestId
 
     /**
+     * 崩溃恢复重放（Task 045）：不经风险门（命令此前已确认过），
+     * 直接执行并依靠幂等键去重；入参相同 → Handler 生成相同幂等键 →
+     * 账本/仓库返回 AlreadyCompleted，不重复记账。
+     */
+    fun replay(intent: Intent): ToolResult {
+        val contract = catalog.tool(ToolRef(intent.type.tool))
+            ?: return ToolResult.Failure("UNKNOWN_TOOL", "未注册的 Tool：${intent.type.tool}")
+        return try {
+            IntentSchemaValidator.validate(intent)
+        } catch (e: SchemaValidationException) {
+            return ToolResult.Failure("SCHEMA_INVALID", e.message ?: "意图 Schema 校验失败")
+        }.let { dispatch(contract, intent, recordJournal = false) }
+    }
+
+    /**
      * 老板确认（approved=true）后执行挂起的意图；
      * 只能确认最近一个待确认请求（由 [ConfirmationGate] 保证）。
      */
@@ -93,7 +112,7 @@ class ToolExecutor(
         return dispatch(contract, intent)
     }
 
-    private fun dispatch(contract: ToolContract, intent: Intent): ToolResult {
+    private fun dispatch(contract: ToolContract, intent: Intent, recordJournal: Boolean = true): ToolResult {
         val handler = handlers[ToolRef(intent.type.tool)]
             ?: return ToolResult.Failure(
                 "NO_HANDLER",
@@ -108,6 +127,18 @@ class ToolExecutor(
                     "${contract.ref.fullName} 返回缺字段 ${missing.joinToString()}，拒绝当作成功"
                 )
             } else {
+                // 写工具成功落账后记录命令日志（崩溃恢复依据，Task 045）；
+                // 重放路径不重复记录
+                if (recordJournal && journal != null &&
+                    contract.idempotencyRequired && data["status"] == "OK"
+                ) {
+                    journal.append(
+                        CommandRecord(
+                            toolName = contract.ref.name,
+                            entitiesJson = encodeEntities(intent.entities)
+                        )
+                    )
+                }
                 ToolResult.Success(data)
             }
         } catch (e: Exception) {
