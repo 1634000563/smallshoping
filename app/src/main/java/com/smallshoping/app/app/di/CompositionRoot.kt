@@ -7,6 +7,8 @@ import com.smallshoping.app.ai.entityresolution.ProductResolver
 import com.smallshoping.app.ai.orchestrator.AiOrchestrator
 import com.smallshoping.app.ai.orchestrator.InputAdapter
 import com.smallshoping.app.ai.orchestrator.StoreSession
+import com.smallshoping.app.ai.providers.AiProvider
+import com.smallshoping.app.ai.providers.FallbackAiProvider
 import com.smallshoping.app.ai.providers.LocalRuleParser
 import com.smallshoping.app.ai.risk.ConfirmationGate
 import com.smallshoping.app.ai.risk.RiskGate
@@ -68,7 +70,10 @@ import com.smallshoping.app.domain.sales.RemoveSaleItemUseCase
  * 当前为内存实现 + 本地规则解析；Room 持久化与云端 Provider 接入后
  * 只改这里与对应实现，其余代码不变。
  */
-class CompositionRoot {
+class CompositionRoot(
+    /** 云端模型 Provider（Task 044）：未配置密钥时为空，纯本地离线运行。 */
+    cloudProvider: AiProvider? = null
+) {
 
     val ledger = InMemoryLedger()
     val products = InMemoryProductRepository()
@@ -160,7 +165,8 @@ class CompositionRoot {
     )
 
     val orchestrator = AiOrchestrator(
-        provider = LocalRuleParser(),
+        // 离线优先：本地规则 → 云端兜底 → 云端失败降级文本（spec 05 §5）
+        provider = FallbackAiProvider(LocalRuleParser(), cloudProvider),
         executor = executor,
         disambiguation = InMemoryDisambiguationStore()
     )
