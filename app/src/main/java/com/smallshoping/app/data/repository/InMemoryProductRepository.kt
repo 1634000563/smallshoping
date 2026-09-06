@@ -3,7 +3,10 @@ package com.smallshoping.app.data.repository
 import com.smallshoping.app.domain.catalog.PriceHistoryEntry
 import com.smallshoping.app.domain.catalog.Product
 import com.smallshoping.app.domain.catalog.ProductAlias
+import com.smallshoping.app.domain.catalog.ProductAttribute
 import com.smallshoping.app.domain.catalog.ProductRepository
+import com.smallshoping.app.domain.catalog.UnitConversion
+import com.smallshoping.app.core.quantity.Unit
 
 /**
  * 内存商品目录实现：线程安全。
@@ -19,6 +22,10 @@ class InMemoryProductRepository : ProductRepository {
     private val byAlias = HashMap<String, Product>()
     private val aliasList = LinkedHashMap<String, MutableList<ProductAlias>>()
     private val priceHistoryList = LinkedHashMap<String, MutableList<PriceHistoryEntry>>()
+    private val attributeList = LinkedHashMap<String, MutableList<ProductAttribute>>()
+    private val attributeIndex = HashMap<String, ProductAttribute>() // productId|normalizedName
+    private val conversionList = LinkedHashMap<String, MutableList<UnitConversion>>()
+    private val conversionIndex = HashMap<String, UnitConversion>() // productId|fromCode|toCode
 
     override fun saveProduct(product: Product) = synchronized(lock) {
         byId[product.id] = product
@@ -75,4 +82,36 @@ class InMemoryProductRepository : ProductRepository {
         require(byId.containsKey(entry.productId)) { "价格历史指向的商品不存在：${entry.productId}" }
         priceHistoryList.getOrPut(entry.productId) { ArrayList() }.add(entry)
     }
+
+    override fun addAttribute(attribute: ProductAttribute) = synchronized(lock) {
+        require(byId.containsKey(attribute.productId)) { "属性指向的商品不存在：${attribute.productId}" }
+        attributeList.getOrPut(attribute.productId) { ArrayList() }.add(attribute)
+        attributeIndex["${attribute.productId}|${attribute.normalizedName}"] = attribute
+    }
+
+    override fun attributes(productId: String): List<ProductAttribute> = synchronized(lock) {
+        attributeList[productId]?.toList() ?: emptyList()
+    }
+
+    override fun findAttribute(productId: String, normalizedName: String): ProductAttribute? =
+        synchronized(lock) {
+            attributeIndex["$productId|$normalizedName"]
+        }
+
+    override fun addConversion(conversion: UnitConversion) = synchronized(lock) {
+        require(byId.containsKey(conversion.productId)) { "换算指向的商品不存在：${conversion.productId}" }
+        conversionList.getOrPut(conversion.productId) { ArrayList() }.add(conversion)
+        conversionIndex[
+            "${conversion.productId}|${conversion.fromUnit.code}|${conversion.toUnit.code}"
+        ] = conversion
+    }
+
+    override fun conversions(productId: String): List<UnitConversion> = synchronized(lock) {
+        conversionList[productId]?.toList() ?: emptyList()
+    }
+
+    override fun findConversion(productId: String, fromUnit: Unit, toUnit: Unit): UnitConversion? =
+        synchronized(lock) {
+            conversionIndex["$productId|${fromUnit.code}|${toUnit.code}"]
+        }
 }

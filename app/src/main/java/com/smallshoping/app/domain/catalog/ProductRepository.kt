@@ -37,4 +37,22 @@ interface ProductRepository {
         newPrice: com.smallshoping.app.core.money.Money,
         history: PriceHistoryEntry
     ): Product?
+
+    /** 追加商品属性（spec 03 product_attribute）。 */
+    fun addAttribute(attribute: ProductAttribute)
+
+    /** 某商品全部属性（按追加顺序）。 */
+    fun attributes(productId: String): List<ProductAttribute>
+
+    /** 按归一化属性名精确查找（五金规格查询用）。 */
+    fun findAttribute(productId: String, normalizedName: String): ProductAttribute?
+
+    /** 追加商品级包装换算（spec 03 unit_conversion）。 */
+    fun addConversion(conversion: UnitConversion)
+
+    /** 某商品全部包装换算。 */
+    fun conversions(productId: String): List<UnitConversion>
+
+    /** 按（商品+from+to）精确查找换算。 */
+    fun findConversion(productId: String, fromUnit: com.smallshoping.app.core.quantity.Unit, toUnit: com.smallshoping.app.core.quantity.Unit): UnitConversion?
 }
