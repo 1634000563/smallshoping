@@ -126,6 +126,24 @@ class AiProviderTest {
     }
 
     @Test
+    fun `本地解析：老张先记账 赊账 还款 → 客户欠款工具（Task 034）`() {
+        val draft = parser.complete(request("老张先记账")) as AiResponse.ToolCall
+        assertEquals("record_customer_credit", draft.toolName)
+        assertEquals("老张", draft.entities["customer"])
+        assertTrue(draft.entities["amount"] == null)
+
+        val credit = parser.complete(request("老张赊200")) as AiResponse.ToolCall
+        assertEquals("record_customer_credit", credit.toolName)
+        assertEquals("20000", credit.entities["amount"])
+        val credit2 = parser.complete(request("老张赊账2块8")) as AiResponse.ToolCall
+        assertEquals("280", credit2.entities["amount"])
+
+        val settle = parser.complete(request("老张还100")) as AiResponse.ToolCall
+        assertEquals("settle_customer_debt", settle.toolName)
+        assertEquals("10000", settle.entities["amount"])
+    }
+
+    @Test
     fun `无法识别：返回澄清而非猜测`() {
         val r = parser.complete(request("今天天气怎么样"))
         assertTrue(r is AiResponse.Clarification)

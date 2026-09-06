@@ -14,6 +14,8 @@ import com.smallshoping.app.ai.tools.AddSaleItemHandler
 import com.smallshoping.app.ai.tools.ApplyYesterdayPriceHandler
 import com.smallshoping.app.ai.tools.CheckoutSaleHandler
 import com.smallshoping.app.ai.tools.CreateProductHandler
+import com.smallshoping.app.ai.tools.RecordCustomerCreditHandler
+import com.smallshoping.app.ai.tools.SettleCustomerDebtHandler
 import com.smallshoping.app.ai.tools.FindProductHandler
 import com.smallshoping.app.ai.tools.GetContextHandler
 import com.smallshoping.app.ai.tools.FindMemberHandler
@@ -127,7 +129,14 @@ class CompositionRoot {
                 customerResolver, resolver, addItemHandler,
                 products, memory, memoryWritePolicy
             ),
-            ToolRef("record_loss") to RecordLossHandler(resolver, recordLossUseCase)
+            ToolRef("record_loss") to RecordLossHandler(resolver, recordLossUseCase),
+            ToolRef("record_customer_credit") to RecordCustomerCreditHandler(
+                customerResolver, recordCustomerCreditUseCase, checkoutSaleUseCase,
+                sales, contexts, session
+            ),
+            ToolRef("settle_customer_debt") to SettleCustomerDebtHandler(
+                customerResolver, receiveCustomerPaymentUseCase, session
+            )
         )
     )
 
@@ -141,7 +150,8 @@ class CompositionRoot {
         "find_product", "create_product", "get_context", "add_sale_item",
         "checkout_sale", "get_today_sales", "purchase_in",
         "find_member", "get_member_balance", "recharge_member",
-        "apply_yesterday_price", "reorder_last_item", "record_loss"
+        "apply_yesterday_price", "reorder_last_item", "record_loss",
+        "record_customer_credit", "settle_customer_debt"
     )
 
     val inputAdapter = InputAdapter(session = session, allowedTools = allowedTools)

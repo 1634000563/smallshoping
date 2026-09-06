@@ -57,6 +57,29 @@ class LocalRuleParser : AiProvider {
                 ) + if (product.isNotBlank()) mapOf("product" to product) else emptyMap()
             )
         }
+        // 老张先记账 / 老张赊200 / 老张还100（Task 034 客户欠款）
+        CREDIT_DRAFT_PATTERN.find(text)?.let { m ->
+            return AiResponse.ToolCall(
+                "record_customer_credit",
+                mapOf("customer" to m.groupValues[1].trim())
+            )
+        }
+        CREDIT_AMOUNT_PATTERN.find(text)?.let { m ->
+            val customer = m.groupValues[1].trim()
+            val fen = MoneyParser.parseYuanToMinor(m.groupValues[2]) ?: return clarification()
+            return AiResponse.ToolCall(
+                "record_customer_credit",
+                mapOf("customer" to customer, "amount" to fen.toString())
+            )
+        }
+        SETTLE_PATTERN.find(text)?.let { m ->
+            val customer = m.groupValues[1].trim()
+            val fen = MoneyParser.parseYuanToMinor(m.groupValues[2]) ?: return clarification()
+            return AiResponse.ToolCall(
+                "settle_customer_debt",
+                mapOf("customer" to customer, "amount" to fen.toString())
+            )
+        }
         // 损耗两斤土豆 / 土豆坏了2斤（Task 033 生鲜损耗）
         LOSS_PATTERN.find(text)?.let { m ->
             val quantity = toArabicNumber(m.groupValues[1]) ?: return clarification()
@@ -156,6 +179,16 @@ class LocalRuleParser : AiProvider {
         val REORDER_PATTERN = Regex(
             "^(.+?)上次(?:那些|那个|的)?\\s*(.*?)再来" +
                 "(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)$"
+        )
+        /** 欠款：老张先记账（金额取草稿单） */
+        val CREDIT_DRAFT_PATTERN = Regex("^(.+?)先记账$")
+        /** 欠款：老张赊200 / 老张赊账2块8 */
+        val CREDIT_AMOUNT_PATTERN = Regex(
+            "^(.+?)赊(?:账)?(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$"
+        )
+        /** 收款：老张还100 */
+        val SETTLE_PATTERN = Regex(
+            "^(.+?)还(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$"
         )
         /** 损耗：损耗两斤土豆（单位缺省按斤） */
         val LOSS_PATTERN = Regex(

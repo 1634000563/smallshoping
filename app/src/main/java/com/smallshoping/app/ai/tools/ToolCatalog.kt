@@ -159,8 +159,9 @@ object V1ToolCatalog : ToolCatalog {
         )
         write(
             "record_customer_credit", RiskLevel.MEDIUM, ConfirmationPolicy.WHEN_AMBIGUOUS,
-            setOf("customer", "amount"),
-            successFields = setOf("status", "customer_id", "debt_after_minor")
+            setOf("customer"), optional = setOf("amount"),
+            successFields = setOf("status", "customer_id", "debt_after_minor"),
+            errorCodes = setOf("INVALID_ARGUMENT", "NOT_FOUND")
         )
         write(
             "settle_customer_debt", RiskLevel.MEDIUM, ConfirmationPolicy.REQUIRED,

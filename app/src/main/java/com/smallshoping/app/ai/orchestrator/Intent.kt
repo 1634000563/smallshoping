@@ -36,7 +36,7 @@ enum class IntentType(val tool: String, val requiredEntities: Set<String>) {
     APPLY_YESTERDAY_PRICE("apply_yesterday_price", emptySet()),
     RECHARGE_MEMBER("recharge_member", setOf("member", "amount")),
     CHARGE_MEMBER("charge_member", setOf("member", "amount")),
-    RECORD_CUSTOMER_CREDIT("record_customer_credit", setOf("customer", "amount")),
+    RECORD_CUSTOMER_CREDIT("record_customer_credit", setOf("customer")),
     SETTLE_CUSTOMER_DEBT("settle_customer_debt", setOf("customer", "amount")),
     RECORD_LOSS("record_loss", setOf("product", "quantity")),
     ADJUST_STOCK("adjust_stock", setOf("product", "quantity")),
