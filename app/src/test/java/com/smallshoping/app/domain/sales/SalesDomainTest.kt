@@ -189,4 +189,23 @@ class SalesDomainTest {
             addItem(huge)
         }
     }
+
+    @Test
+    fun `回归：已结账的完成单不可再加项，自动另起新草稿（Task 037 发现）`() {
+        products.saveProduct(potato)
+        stockIn("P-1", 5000, "IN-REGRESS")
+        val added = addItem(
+            AddSaleItemRequest("STORE-1", null, "P-1", Quantity(1000, Unit.GRAM))
+        ) as AddSaleItemResult.Success
+        checkout(CheckoutSaleRequest(added.sale.id, PaymentMethod.CASH, "ck-regress"))
+
+        // 对已完成的单再引用加项 → 必须另起新草稿，完成单内容不变
+        val again = addItem(
+            AddSaleItemRequest("STORE-1", added.sale.id, "P-1", Quantity(500, Unit.GRAM))
+        ) as AddSaleItemResult.Success
+        assertTrue(again.sale.id != added.sale.id)
+        assertEquals(1, sales.findById(added.sale.id)!!.items.size) // 完成单未被改动
+        assertEquals(SaleStatus.DRAFT, again.sale.status)
+        assertEquals(4000L, stock.stockOf("P-1")) // 只有第一单扣了库存
+    }
 }

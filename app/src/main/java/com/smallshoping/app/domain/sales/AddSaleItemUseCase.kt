@@ -49,7 +49,10 @@ class AddSaleItemUseCase(
             unitPrice = unitPrice,
             subtotal = subtotal
         )
+        // 只有 DRAFT 单可继续加项；引用已结账/取消的单则另起新草稿
+        //（追加式：完成单是不可再改的历史事实）
         val draft = request.draftSaleId?.let { sales.findDraft(it) }
+            ?.takeIf { it.status == SaleStatus.DRAFT }
             ?: SaleOrder(
                 id = UUID.randomUUID().toString(),
                 storeId = request.storeId

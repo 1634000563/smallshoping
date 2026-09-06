@@ -9,3 +9,11 @@
 {"id": "hardware-003", "utterance": "老张先记账", "expected_intent": "CHECKOUT_ON_CREDIT", "expected_tool": "record_customer_credit", "risk": "MEDIUM", "clarification": false}
 {"id": "generic-001", "utterance": "土豆改成四十块", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": true}
 {"id": "generic-002", "utterance": "张姐还有多少钱", "expected_intent": "GET_MEMBER_BALANCE", "expected_tool": "get_member_balance", "risk": "LOW", "clarification": true}
+{"id": "veg-010", "utterance": "损耗半斤土豆", "expected_intent": "RECORD_LOSS", "expected_tool": "record_loss", "risk": "MEDIUM", "clarification": false}
+{"id": "hw-001", "utterance": "304的螺栓多少钱", "expected_intent": "FIND_PRODUCT", "expected_tool": "find_product", "risk": "LOW", "clarification": false}
+{"id": "hw-002", "utterance": "卖5个304螺栓", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
+{"id": "hw-003", "utterance": "老张先记账", "expected_intent": "RECORD_CUSTOMER_CREDIT", "expected_tool": "record_customer_credit", "risk": "MEDIUM", "clarification": false}
+{"id": "hw-004", "utterance": "老张还1块", "expected_intent": "SETTLE_CUSTOMER_DEBT", "expected_tool": "settle_customer_debt", "risk": "MEDIUM", "clarification": false}
+{"id": "mem-001", "utterance": "给张姐充200", "expected_intent": "RECHARGE_MEMBER", "expected_tool": "recharge_member", "risk": "MEDIUM", "clarification": false}
+{"id": "bar-001", "utterance": "6901234567890", "expected_intent": "FIND_PRODUCT_BY_BARCODE", "expected_tool": "find_product_by_barcode", "risk": "LOW", "clarification": false}
+{"id": "veg-011", "utterance": "还是昨天那个价格", "expected_intent": "APPLY_YESTERDAY_PRICE", "expected_tool": "apply_yesterday_price", "risk": "MEDIUM", "clarification": false}
