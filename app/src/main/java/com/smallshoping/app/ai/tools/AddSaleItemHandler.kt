@@ -43,7 +43,11 @@ class AddSaleItemHandler(
                 "status" to "AMBIGUOUS", "item_id" to "",
                 "message" to "有好几个像「$query」的商品：" +
                     resolution.candidates.joinToString("、") { it.value.name } +
-                    "，是哪一个？"
+                    "，是哪一个？",
+                "ambiguous_key" to "product",
+                "ambiguous_tool" to "add_sale_item",
+                "candidates" to resolution.candidates.joinToString("|") { "${it.value.id}=${it.value.name}" },
+                "intent_entities" to encodeEntities(entities)
             )
 
             is Resolution.Resolved -> {

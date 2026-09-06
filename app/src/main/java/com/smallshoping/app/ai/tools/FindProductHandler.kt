@@ -19,7 +19,11 @@ class FindProductHandler(private val resolver: ProductResolver) : ToolHandler {
                 "status" to "AMBIGUOUS",
                 "products" to resolution.candidates.joinToString("|") {
                     "${it.value.id}=${it.value.name}@${it.value.saleUnit.name}/${it.value.currentSalePrice.minor}"
-                }
+                },
+                "ambiguous_key" to "query",
+                "ambiguous_tool" to "find_product",
+                "candidates" to resolution.candidates.joinToString("|") { "${it.value.id}=${it.value.name}" },
+                "intent_entities" to encodeEntities(entities)
             )
 
             is Resolution.Resolved -> {

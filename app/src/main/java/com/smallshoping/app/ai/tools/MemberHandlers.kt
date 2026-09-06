@@ -25,7 +25,11 @@ class FindMemberHandler(private val resolver: MemberResolver) : ToolHandler {
                 "status" to "AMBIGUOUS",
                 "members" to resolution.candidates.joinToString("|") {
                     "${it.value.id}=${it.value.name}@${it.value.phone ?: ""}"
-                }
+                },
+                "ambiguous_key" to "query",
+                "ambiguous_tool" to "find_member",
+                "candidates" to resolution.candidates.joinToString("|") { "${it.value.id}=${it.value.name}" },
+                "intent_entities" to encodeEntities(entities)
             )
 
             is Resolution.Resolved -> {
@@ -56,7 +60,11 @@ class GetMemberBalanceHandler(
             is Resolution.Ambiguous -> mapOf(
                 "status" to "AMBIGUOUS", "balance_minor" to "",
                 "message" to "有好几个像「$query」的会员：" +
-                    resolution.candidates.joinToString("、") { it.value.name } + "，是哪一个？"
+                    resolution.candidates.joinToString("、") { it.value.name } + "，是哪一个？",
+                "ambiguous_key" to "member",
+                "ambiguous_tool" to "get_member_balance",
+                "candidates" to resolution.candidates.joinToString("|") { "${it.value.id}=${it.value.name}" },
+                "intent_entities" to encodeEntities(entities)
             )
 
             is Resolution.Resolved -> {
@@ -108,7 +116,11 @@ class RechargeMemberHandler(
             is Resolution.Ambiguous -> mapOf(
                 "status" to "AMBIGUOUS", "member_id" to "", "balance_after_minor" to "",
                 "message" to "有好几个像「$query」的会员：" +
-                    resolution.candidates.joinToString("、") { it.value.name } + "，是哪一个？"
+                    resolution.candidates.joinToString("、") { it.value.name } + "，是哪一个？",
+                "ambiguous_key" to "member",
+                "ambiguous_tool" to "recharge_member",
+                "candidates" to resolution.candidates.joinToString("|") { "${it.value.id}=${it.value.name}" },
+                "intent_entities" to encodeEntities(entities)
             )
 
             is Resolution.Resolved -> {

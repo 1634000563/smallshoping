@@ -227,13 +227,99 @@ class EndToEndSliceTest {
     }
 
     @Test
+    fun `多轮消歧：给小张充200 → 追问 → 报名字 → 确认后入账（Task 025）`() {
+        root.members.saveMember(
+            com.smallshoping.app.domain.member.Member(
+                id = "M-1", storeId = "STORE-1", name = "小张姐",
+                normalizedName = normalize("小张姐")
+            )
+        )
+        root.members.saveMember(
+            com.smallshoping.app.domain.member.Member(
+                id = "M-2", storeId = "STORE-1", name = "小张哥",
+                normalizedName = normalize("小张哥")
+            )
+        )
+        val first = root.orchestrator.handle(root.inputAdapter.fromText("给小张充200"))
+        assertTrue(first is OrchestratorReply.NeedsConfirm)
+        val ambiguous = root.orchestrator.confirm(
+            (first as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((ambiguous as OrchestratorReply.Text).text.contains("是哪一个"))
+
+        // 老板报候选名 → 原意图重跑（充值仍需 MEDIUM 确认）
+        val resolved = root.orchestrator.handle(root.inputAdapter.fromText("小张姐"))
+        assertTrue(resolved is OrchestratorReply.NeedsConfirm)
+        val done = root.orchestrator.confirm(
+            (resolved as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((done as OrchestratorReply.Text).text.contains("已充值"))
+        assertEquals(20000L, root.memberFundsQuery.balanceOf("M-1"))
+        assertEquals(0L, root.memberFundsQuery.balanceOf("M-2"))
+    }
+
+    @Test
+    fun `多轮消歧：用第X个指认候选（Task 025）`() {
+        root.members.saveMember(
+            com.smallshoping.app.domain.member.Member(
+                id = "M-1", storeId = "STORE-1", name = "小张姐",
+                normalizedName = normalize("小张姐")
+            )
+        )
+        root.members.saveMember(
+            com.smallshoping.app.domain.member.Member(
+                id = "M-2", storeId = "STORE-1", name = "小张哥",
+                normalizedName = normalize("小张哥")
+            )
+        )
+        val first = root.orchestrator.handle(root.inputAdapter.fromText("给小张充200"))
+        root.orchestrator.confirm((first as OrchestratorReply.NeedsConfirm).requestId, approved = true)
+
+        val resolved = root.orchestrator.handle(root.inputAdapter.fromText("第二个"))
+        assertTrue(resolved is OrchestratorReply.NeedsConfirm)
+        val done = root.orchestrator.confirm(
+            (resolved as OrchestratorReply.NeedsConfirm).requestId, approved = true
+        )
+        assertTrue((done as OrchestratorReply.Text).text.contains("已充值"))
+        assertEquals(20000L, root.memberFundsQuery.balanceOf("M-2"))
+    }
+
+    @Test
+    fun `新任务取代旧追问：报名字不再触发充值（Task 025）`() {
+        root.members.saveMember(
+            com.smallshoping.app.domain.member.Member(
+                id = "M-1", storeId = "STORE-1", name = "小张姐",
+                normalizedName = normalize("小张姐")
+            )
+        )
+        root.members.saveMember(
+            com.smallshoping.app.domain.member.Member(
+                id = "M-2", storeId = "STORE-1", name = "小张哥",
+                normalizedName = normalize("小张哥")
+            )
+        )
+        val first = root.orchestrator.handle(root.inputAdapter.fromText("给小张充200"))
+        root.orchestrator.confirm((first as OrchestratorReply.NeedsConfirm).requestId, approved = true)
+
+        // 老板改口：新任务取代旧追问
+        seedPotato()
+        val newTask = root.orchestrator.handle(root.inputAdapter.fromText("卖两斤土豆"))
+        assertTrue((newTask as OrchestratorReply.Text).text.contains("已加入"))
+        // 旧追问已作废：再报「小张姐」不会再触发充值
+        val leftover = root.orchestrator.handle(root.inputAdapter.fromText("小张姐"))
+        assertTrue(leftover is OrchestratorReply.Question)
+        assertEquals(0L, root.memberFundsQuery.balanceOf("M-1"))
+    }
+
+    @Test
     fun `AI 失败不改变任何事实`() {
         seedPotato()
         val failing = AiOrchestrator(
             provider = com.smallshoping.app.ai.providers.CloudAiProvider(
                 com.smallshoping.app.ai.providers.AiGatewayClient { throw IllegalStateException("timeout") }
             ),
-            executor = root.executor
+            executor = root.executor,
+            disambiguation = com.smallshoping.app.data.repository.InMemoryDisambiguationStore()
         )
         val reply = failing.handle(root.inputAdapter.fromText("卖两斤土豆"))
         assertTrue(reply is OrchestratorReply.Text)

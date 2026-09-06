@@ -24,6 +24,7 @@ import com.smallshoping.app.ai.tools.ToolRef
 import com.smallshoping.app.ai.tools.V1ToolCatalog
 import com.smallshoping.app.data.ledger.InMemoryLedger
 import com.smallshoping.app.data.repository.InMemoryCustomerRepository
+import com.smallshoping.app.data.repository.InMemoryDisambiguationStore
 import com.smallshoping.app.data.repository.InMemoryMemberRepository
 import com.smallshoping.app.data.repository.InMemoryMemoryStore
 import com.smallshoping.app.data.repository.InMemoryProductRepository
@@ -106,7 +107,11 @@ class CompositionRoot {
         )
     )
 
-    val orchestrator = AiOrchestrator(provider = LocalRuleParser(), executor = executor)
+    val orchestrator = AiOrchestrator(
+        provider = LocalRuleParser(),
+        executor = executor,
+        disambiguation = InMemoryDisambiguationStore()
+    )
 
     val allowedTools = listOf(
         "find_product", "create_product", "get_context", "add_sale_item",

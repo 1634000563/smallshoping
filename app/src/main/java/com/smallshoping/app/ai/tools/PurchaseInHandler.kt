@@ -47,7 +47,11 @@ class PurchaseInHandler(
             is Resolution.Ambiguous -> mapOf(
                 "status" to "AMBIGUOUS", "purchase_id" to "",
                 "message" to "有好几个像「$query」的商品：" +
-                    resolution.candidates.joinToString("、") { it.value.name } + "，是哪一个？"
+                    resolution.candidates.joinToString("、") { it.value.name } + "，是哪一个？",
+                "ambiguous_key" to "product",
+                "ambiguous_tool" to "purchase_in",
+                "candidates" to resolution.candidates.joinToString("|") { "${it.value.id}=${it.value.name}" },
+                "intent_entities" to encodeEntities(entities)
             )
 
             is Resolution.Resolved -> {

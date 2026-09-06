@@ -1,5 +1,8 @@
 package com.smallshoping.app.ai.orchestrator
 
+import com.smallshoping.app.ai.context.CandidateRef
+import com.smallshoping.app.ai.context.DisambiguationStore
+import com.smallshoping.app.ai.context.PendingQuestion
 import com.smallshoping.app.ai.providers.AiProvider
 import com.smallshoping.app.ai.providers.AiResponse
 import com.smallshoping.app.ai.providers.GatewayRequest
@@ -22,14 +25,34 @@ sealed interface OrchestratorReply {
  *
  * - 模型只能选择请求中授权的工具（最小权限）；
  * - AI 失败不改变任何事实，只降级为文本提示（离线宪法 #6）；
- * - 需要确认的操作挂起，由 [confirm] 在老板确认后继续执行。
+ * - 需要确认的操作挂起，由 [confirm] 在老板确认后继续执行；
+ * - 实体歧义（spec 08 §8）挂起追问——无论歧义发生在首次执行还是确认后执行，
+ *   老板用候选名/「第X个」回答即重跑原意图；发起新任务则旧追问作废。
  */
 class AiOrchestrator(
     private val provider: AiProvider,
-    private val executor: ToolExecutor
+    private val executor: ToolExecutor,
+    private val disambiguation: DisambiguationStore
 ) {
 
+    /** 待确认请求 → 发起设备：confirm 后若出现歧义，追问要挂回原设备。 */
+    private val confirmDevices = HashMap<String, String>()
+
     fun handle(request: GatewayRequest): OrchestratorReply {
+        // 1) 追问优先：老板的回答先看是不是在消歧（候选名/第X个）
+        disambiguation.pending(request.deviceId)?.let { pending ->
+            pending.choose(request.inputText)?.let { chosen ->
+                disambiguation.clear(request.deviceId)
+                val reply = executeToolCall(
+                    pending.toolName,
+                    pending.entities + (pending.ambiguousKey to chosen.name),
+                    request.deviceId
+                )
+                return recordConfirmDevice(reply, request.deviceId)
+            }
+        }
+
+        // 2) 常规路径
         val response = provider.complete(request)
         return when (response) {
             is AiResponse.FinalText -> OrchestratorReply.Text(response.text)
@@ -49,25 +72,77 @@ class AiOrchestrator(
                 if (response.toolName !in request.allowedTools) {
                     OrchestratorReply.Question("这个操作暂时没有开放")
                 } else {
-                    executeToolCall(response.toolName, response.entities)
+                    // 新任务取代旧追问
+                    disambiguation.clear(request.deviceId)
+                    recordConfirmDevice(
+                        executeToolCall(response.toolName, response.entities, request.deviceId),
+                        request.deviceId
+                    )
                 }
             }
         }
     }
 
     /** 老板对挂起请求的确认/拒绝（spec 08 §9）。 */
-    fun confirm(requestId: String, approved: Boolean): OrchestratorReply =
-        toReply(executor.confirm(requestId, approved))
+    fun confirm(requestId: String, approved: Boolean): OrchestratorReply {
+        val result = executor.confirm(requestId, approved)
+        // 确认后执行若出现实体歧义，同样挂起追问（挂回发起设备）
+        confirmDevices.remove(requestId)?.let { proposeIfAmbiguity(result, it) }
+        return toReply(result)
+    }
 
-    private fun executeToolCall(toolName: String, entities: Map<String, String>): OrchestratorReply {
+    private fun recordConfirmDevice(reply: OrchestratorReply, deviceId: String): OrchestratorReply {
+        if (reply is OrchestratorReply.NeedsConfirm) {
+            confirmDevices[reply.requestId] = deviceId
+        }
+        return reply
+    }
+
+    private fun executeToolCall(
+        toolName: String,
+        entities: Map<String, String>,
+        deviceId: String
+    ): OrchestratorReply {
         val type = IntentType.fromTool(toolName)
             ?: return OrchestratorReply.Question("不认识这个操作")
-        return toReply(
-            executor.execute(
-                Intent(type = type, entities = entities)
-            )
-        )
+        val result = executor.execute(Intent(type = type, entities = entities))
+        proposeIfAmbiguity(result, deviceId)
+        return toReply(result)
     }
+
+    /** 实体歧义 → 挂起追问，等待下一轮回答（候选数据由 Handler 以 AMBIGUOUS 状态返回）。 */
+    private fun proposeIfAmbiguity(result: ToolResult, deviceId: String) {
+        if (result !is ToolResult.Success || result.data["status"] != "AMBIGUOUS") return
+        val toolName = result.data["ambiguous_tool"] ?: return
+        parseCandidates(result.data["candidates"])?.takeIf { it.isNotEmpty() }?.let { candidates ->
+            disambiguation.propose(
+                deviceId,
+                PendingQuestion(
+                    toolName = toolName,
+                    entities = result.data["intent_entities"]?.let { decodeEntities(it) } ?: emptyMap(),
+                    ambiguousKey = result.data["ambiguous_key"] ?: "",
+                    candidates = candidates,
+                    expiresAtMillis = System.currentTimeMillis() + QUESTION_TTL_MILLIS
+                )
+            )
+        }
+    }
+
+    /** 解析「id=name|id=name」候选列表。 */
+    private fun parseCandidates(raw: String?): List<CandidateRef>? {
+        if (raw.isNullOrBlank()) return null
+        return raw.split("|").mapNotNull { part ->
+            val idx = part.indexOf('=')
+            if (idx <= 0) null else CandidateRef(part.substring(0, idx), part.substring(idx + 1))
+        }.ifEmpty { null }
+    }
+
+    /** 解析「key=value&key=value」意图参数编码。 */
+    private fun decodeEntities(raw: String): Map<String, String> =
+        raw.split("&").mapNotNull { part ->
+            val idx = part.indexOf('=')
+            if (idx <= 0) null else part.substring(0, idx) to part.substring(idx + 1)
+        }.toMap()
 
     private fun toReply(result: ToolResult): OrchestratorReply = when (result) {
         is ToolResult.Success ->
@@ -80,5 +155,10 @@ class AiOrchestrator(
             OrchestratorReply.NeedsConfirm(result.requestId, result.question)
 
         is ToolResult.Rejected -> OrchestratorReply.Text("已取消")
+    }
+
+    private companion object {
+        /** 追问有效期：2 分钟不回答自动作废。 */
+        const val QUESTION_TTL_MILLIS = 2L * 60 * 1000
     }
 }
