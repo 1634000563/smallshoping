@@ -45,3 +45,4 @@
 - `22-device-identity.md`：店铺/设备/操作员身份
 - `23-reporting-definitions.md`：日报/月报严格口径
 - `24-nonfunctional.md`：性能、可靠性、维护性、安全等非功能要求
+- `27-voice-operation-map.md`：老板语言→软件操作映射图谱（Task 059，黄金集守护）
