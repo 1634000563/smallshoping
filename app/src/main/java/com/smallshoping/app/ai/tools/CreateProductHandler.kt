@@ -33,6 +33,11 @@ class CreateProductHandler(
             currentCostPrice = null
         )
         products.saveProduct(product)
-        return mapOf("status" to "OK", "product_id" to product.id)
+        val priceText = if (priceMinor > 0) "，卖价 ${priceMinor} 分" else "（还没定价，说「$name 改成 X 块」来定价）"
+        return mapOf(
+            "status" to "OK",
+            "product_id" to product.id,
+            "message" to "已建好商品「$name」$priceText"
+        )
     }
 }

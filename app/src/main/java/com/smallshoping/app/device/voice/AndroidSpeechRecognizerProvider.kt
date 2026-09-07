@@ -44,7 +44,16 @@ class AndroidSpeechRecognizerProvider(context: Context) : SpeechInputProvider {
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "没有说话"
                     SpeechRecognizer.ERROR_NETWORK -> "语音服务网络不可用"
                     SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "语音服务超时"
-                    else -> "语音识别失败（code=$error）"
+                    // Task 059 真机验收补充：常见引擎错误给明确名称（离线宪法 #6 降级提示）
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "没有麦克风权限"
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "语音引擎正忙，稍后再试"
+                    SpeechRecognizer.ERROR_CLIENT -> "这台设备的语音引擎不可用（可能未登录引擎账号），请用键盘输入"
+                    SpeechRecognizer.ERROR_SERVER -> "语音引擎服务器出错，请用键盘输入"
+                    SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED -> "这台设备不支持中文语音识别，请用键盘输入"
+                    SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "这台设备暂时没有可用的中文语音识别，请用键盘输入"
+                    SpeechRecognizer.ERROR_AUDIO -> "麦克风采集失败，请用键盘输入"
+                    SpeechRecognizer.ERROR_TOO_MANY_REQUESTS -> "语音请求太频繁，请用键盘输入"
+                    else -> "语音识别失败（code=$error），请用键盘输入"
                 }
                 if (error == SpeechRecognizer.ERROR_NO_MATCH) {
                     callback?.invoke(SpeechResult.NoMatch(message))

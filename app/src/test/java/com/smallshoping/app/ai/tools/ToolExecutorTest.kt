@@ -66,8 +66,11 @@ class ToolExecutorTest {
         val pending = result as ToolResult.NeedsConfirmation
         val executed = executor.confirm(pending.requestId, approved = true)
         assertTrue(executed is ToolResult.Success)
-        val id = (executed as ToolResult.Success).data["product_id"]!!
+        val data = (executed as ToolResult.Success).data
+        val id = data["product_id"]!!
         assertTrue(products.findProductById(id) != null)
+        // Task 059 真机反馈修复：成功回复必须有友好 message（不得只吐原始 map）
+        assertTrue("成功结果必须有 message：$data", data["message"]!!.contains("已建好商品"))
     }
 
     @Test
