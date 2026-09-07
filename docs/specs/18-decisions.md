@@ -83,3 +83,9 @@
 决定：V1 Release Candidate 使用 AGP 自动生成的 debug keystore 签名（~/.android/debug.keystore，证书 CN=Android Debug）；版本基线 versionCode=1 / versionName=0.1.0；APK 通过 adb 安装（内部安装），不上任何商店。
 原因：V1 目标是小店老板内部装机，无商店审核需求；debug 签名可复现、无密钥管理负担。正式签名（独立 keystore + 密码离线保存）在出现商店发布/正式分发需求时再建立。
 影响：debug keystore 是设备安装凭据，换机器构建的 APK 无法覆盖安装（签名不同）——跨机器协作时需共享或重建 keystore；releaseCandidate 任务每次发布前自动验证签名与密钥安全。
+
+## ADR-017 语音输入由系统键盘提供，应用不内置 ASR（Task 059 真机验收）
+
+决定：V1 应用不内置语音识别（移除 Vosk/Sherpa-ONNX/系统 SpeechRecognizer 全部集成，不申请 RECORD_AUDIO 权限）；主界面改为微信式底部输入栏，点输入框弹系统键盘，语音输入由键盘自带语音键完成（小米/搜狗/讯飞等输入法均支持，含方言）。
+原因：真机验收结论——①离线开源模型（Vosk small-cn / Sherpa zipformer-ctc）对营业短句精度不足，方言完全无法覆盖；②POS 终端系统语音引擎（小爱）需账号登录不可用；③精度+速度+方言三者兼得的方案只有云端 ASR（讯飞等），与离线宪法冲突且需网关。键盘方案把语音交给成熟 IME（用户自选擅长的输入法/方言），应用零维护成本、零权限，离线方言体验反而最好。
+影响：spec 10 §3「Mic→STT→text」的 STT 由系统键盘承担，链路变为「键盘语音键→输入框文本→AI/本地解析器→Tool」；语音体验依赖设备安装的输入法（发布说明需标注）；RECORD_AUDIO 权限与麦克风 uses-feature 从 Manifest 移除；未来如需应用内语音，优先评估云端 ASR + 网关（V1.1）。

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
@@ -22,19 +23,19 @@ import com.smallshoping.app.app.di.CompositionRoot
 import com.smallshoping.app.device.scanner.BarcodeScanner
 import com.smallshoping.app.device.scanner.MlKitBarcodeScanner
 import com.smallshoping.app.device.scanner.ScanResult
-import com.smallshoping.app.device.voice.AndroidSpeechRecognizerProvider
-import com.smallshoping.app.device.voice.SpeechResult
 
 /**
- * 极简主界面（Task 041/042）：语音/扫码/当前任务/确认卡片/人工接管。
- * Task 052 真机化：摄像头扫码 + 运行时权限 + 后台释放（设备兼容）。
+ * 极简主界面（Task 041/042，Task 059 微信式输入重构）：
+ * 聊天窗口布局——回复区 + 底部输入栏（点输入框弹系统键盘）。
  *
  * - 无传统菜单（Route Guard）；老板只会看到：回复区、当前任务、
- *   一个输入框、语音按钮、扫码按钮、确认/取消按钮、人工兜底按钮；
+ *   底部输入栏（扫+输入框+发送）、确认/取消、人工兜底按钮；
  * - 所有输入汇入 [HomeViewModel.handleInput]（唯一链路 UI→AI→Tool→Domain）；
  * - 确认卡片：CONFIRM 状态黄色卡片提示；异常 ERROR 红色提示（AI 挂不影响营业）；
  * - 人工接管：AI 不可用时「手动加」「人工结账」直接走 Domain（Gate A 同一事实）；
- * - 语音/扫码失败自动降级提示用键盘输入（离线宪法 #6）；
+ * - 语音输入由系统键盘提供（ADR-017）：点输入框弹出的键盘自带语音键
+ *   （小米/搜狗/讯飞等输入法，方言效果好），应用不内置 ASR、不申请麦克风权限；
+ * - 扫码失败自动降级提示用键盘输入（离线宪法 #6）；
  * - 基类为 ComponentActivity：相机绑定需要 LifecycleOwner（Task 052）。
  */
 class MainActivity : ComponentActivity() {
@@ -46,9 +47,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var input: EditText
     private lateinit var confirmButton: Button
     private lateinit var cancelButton: Button
+    private lateinit var confirmRow: LinearLayout
     private lateinit var previewView: PreviewView
     private var barcodeScanner: BarcodeScanner? = null
-    private val speech = lazy { AndroidSpeechRecognizerProvider(this) }
 
     /** Task 052：权限走 registerForActivityResult（onRequestPermissionsResult 已弃用）。 */
     private val cameraPermission = registerForActivityResult(
@@ -58,15 +59,6 @@ class MainActivity : ComponentActivity() {
             beginScan()
         } else {
             render(HomeUiState(UiKind.ERROR, "没有相机权限，请用键盘输入条码"))
-        }
-    }
-    private val audioPermission = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            beginVoice()
-        } else {
-            render(HomeUiState(UiKind.ERROR, "没有麦克风权限，请用键盘输入（可用键盘继续营业）"))
         }
     }
 
@@ -91,34 +83,39 @@ class MainActivity : ComponentActivity() {
     private fun buildLayout(): LinearLayout {
         val rootLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
             setBackgroundColor(Color.WHITE)
         }
 
         // 当前任务区
         taskText = TextView(this).apply {
-            textSize = 16f
+            textSize = 14f
             setTextColor(Color.DKGRAY)
+            setPadding(32, 16, 32, 8)
             text = "当前没有待结账的单子"
         }
         rootLayout.addView(taskText, matchWidth())
 
-        // 回复区（可滚动）
+        // 回复区（聊天内容，可滚动，占满剩余空间）
         replyText = TextView(this).apply {
             textSize = 20f
             setTextColor(Color.BLACK)
             typeface = Typeface.DEFAULT_BOLD
+            setPadding(32, 16, 32, 16)
             text = "说什么：卖两斤土豆 / 进100斤土豆成本2块8 / 结账 / 今天卖了多少钱"
         }
-        val scroll = ScrollView(this).apply { addView(replyText, matchWidth()) }
+        val scroll = ScrollView(this).apply {
+            addView(replyText, matchWidth())
+            isFillViewport = true
+        }
         rootLayout.addView(scroll, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
 
-        // 确认/取消（有待确认操作时使用）
-        val confirmRow = LinearLayout(this).apply {
+        // 确认卡片行（仅待确认时显示，Task 042）
+        confirmRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            visibility = android.view.View.GONE
         }
         confirmButton = Button(this).apply {
             text = "确认"
@@ -132,39 +129,6 @@ class MainActivity : ComponentActivity() {
         confirmRow.addView(cancelButton, wrap())
         rootLayout.addView(confirmRow, matchWidth())
 
-        // 输入行：输入框 + 发送 + 语音
-        val inputRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        input = EditText(this).apply {
-            hint = "打字或按语音说（条码直接输入数字）"
-            textSize = 16f
-        }
-        inputRow.addView(input, LinearLayout.LayoutParams(0, wrapHeight(), 1f))
-        inputRow.addView(
-            Button(this).apply {
-                text = "发送"
-                setOnClickListener {
-                    render(viewModel.handleInput(input.text.toString()))
-                    input.text.clear()
-                }
-            },
-            wrap()
-        )
-        inputRow.addView(
-            Button(this).apply {
-                text = "🎤"
-                setOnClickListener { startVoice() }
-            },
-            wrap()
-        )
-        inputRow.addView(
-            Button(this).apply {
-                text = "扫"
-                setOnClickListener { startScan() }
-            },
-            wrap()
-        )
-        rootLayout.addView(inputRow, matchWidth())
-
         // 扫码取景框（扫码时临时显示，Task 052）
         previewView = PreviewView(this).apply { visibility = android.view.View.GONE }
         rootLayout.addView(previewView, LinearLayout.LayoutParams(
@@ -175,6 +139,7 @@ class MainActivity : ComponentActivity() {
         val manualRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            setPadding(16, 0, 16, 0)
         }
         manualRow.addView(
             Button(this).apply {
@@ -212,33 +177,49 @@ class MainActivity : ComponentActivity() {
             wrap()
         )
         rootLayout.addView(manualRow, matchWidth())
-        return rootLayout
-    }
 
-    private fun startVoice() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            audioPermission.launch(Manifest.permission.RECORD_AUDIO)
-            return
+        // 底部输入栏（微信式，Task 059）：[扫] [输入框（点按弹键盘，键盘自带语音）] [发送]
+        val inputBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(16, 12, 16, 20)
         }
-        beginVoice()
-    }
-
-    private fun beginVoice() {
-        speech.value.listen { result ->
-            runOnUiThread {
-                when (result) {
-                    is SpeechResult.Transcript -> render(viewModel.handleInput(result.text))
-                    is SpeechResult.NoMatch -> render(
-                        HomeUiState(kind = UiKind.QUESTION, reply = "没听清，请再说一次")
-                    )
-                    is SpeechResult.Error -> render(
-                        HomeUiState(kind = UiKind.ERROR, reply = "${result.message}（可用键盘继续营业）")
-                    )
-                }
+        inputBar.addView(
+            Button(this).apply {
+                text = "扫"
+                setOnClickListener { startScan() }
+            },
+            wrap()
+        )
+        input = EditText(this).apply {
+            hint = "打字说，或按住键盘的语音键说（条码直接输入数字）"
+            textSize = 16f
+            maxLines = 3
+            setPadding(40, 20, 40, 20)
+            // 微信式圆角灰底输入框
+            background = GradientDrawable().apply {
+                cornerRadius = 56f
+                setColor(Color.rgb(245, 245, 245))
             }
         }
+        inputBar.addView(input, LinearLayout.LayoutParams(0, wrapHeight(), 1f).apply {
+            marginStart = 16
+            marginEnd = 16
+        })
+        inputBar.addView(
+            Button(this).apply {
+                text = "发送"
+                setBackgroundColor(Color.rgb(7, 193, 96)) // 微信绿
+                setTextColor(Color.WHITE)
+                setOnClickListener {
+                    render(viewModel.handleInput(input.text.toString()))
+                    input.text.clear()
+                }
+            },
+            wrap()
+        )
+        rootLayout.addView(inputBar, matchWidth())
+        return rootLayout
     }
 
     private fun startScan() {
@@ -272,8 +253,7 @@ class MainActivity : ComponentActivity() {
         replyText.text = state.reply
         taskText.text = state.currentTask
         val pending = state.pendingConfirmId != null
-        confirmButton.isEnabled = pending
-        cancelButton.isEnabled = pending
+        confirmRow.visibility = if (pending) android.view.View.VISIBLE else android.view.View.GONE
         when (state.kind) {
             // 确认卡片：黄色背景强调
             UiKind.CONFIRM -> {
@@ -308,17 +288,15 @@ class MainActivity : ComponentActivity() {
 
     private fun wrapHeight() = ViewGroup.LayoutParams.WRAP_CONTENT
 
-    /** 后台清理（Task 052）：切后台即释放相机与麦克风，回来再点「扫」/「🎤」重新开始。 */
+    /** 后台清理（Task 052）：切后台即释放相机。 */
     override fun onStop() {
         super.onStop()
         barcodeScanner?.cancel()
         previewView.visibility = android.view.View.GONE
-        if (speech.isInitialized()) speech.value.cancel()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if (speech.isInitialized()) speech.value.cancel()
         barcodeScanner?.cancel()
     }
 }
