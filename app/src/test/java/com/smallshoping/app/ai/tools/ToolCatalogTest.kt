@@ -1,31 +1,95 @@
 package com.smallshoping.app.ai.tools
 
+import com.smallshoping.app.ai.providers.AiVersions
 import com.smallshoping.app.ai.risk.RiskLevel
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
+/**
+ * Task 053 升级：本测试直接读取 `docs/schemas/tool-catalog.json`（机器可读契约，
+ * spec 07 §6），与运行时目录 V1ToolCatalog 全量比对——新增/修改 Tool 两处必须同步，
+ * 否则测试失败。
+ */
 class ToolCatalogTest {
 
-    /** 与 docs/schemas/tool-catalog.json v1.0 的工具名全集一致（守护两处同步）。 */
-    private val jsonToolNames = setOf(
-        "find_product", "find_product_by_barcode", "get_stock", "get_today_sales",
-        "get_month_sales", "get_top_products", "get_low_stock", "find_member",
-        "get_member_balance", "find_customer", "get_customer_debt", "create_product",
-        "purchase_in", "create_sale", "checkout_sale", "refund_sale", "change_price",
-        "recharge_member", "charge_member", "record_customer_credit", "settle_customer_debt",
-        "record_loss", "adjust_stock", "add_sale_item", "remove_sale_item",
-        "get_current_sale", "cancel_sale", "get_stock_history", "get_loss_report",
-        "get_profit_summary", "create_fulfillment", "update_fulfillment_status",
-        "get_fulfillment", "get_context", "apply_yesterday_price", "reorder_last_item"
+    private val jsonRoot: JSONObject = JSONObject(
+        File(System.getProperty("user.dir"), "../docs/schemas/tool-catalog.json").readText(Charsets.UTF_8)
     )
+    private val jsonTools = jsonRoot.getJSONArray("tools")
+
+    private fun jsonTool(name: String): JSONObject =
+        (0 until jsonTools.length()).map { jsonTools.getJSONObject(it) }
+            .first { it.getString("name") == name }
+
+    private fun contract(name: String): ToolContract =
+        V1ToolCatalog.tool(ToolRef(name)) ?: error("目录缺少工具 $name")
 
     @Test
     fun `目录与 tool-catalog json 工具名全集一致`() {
-        val catalogNames = V1ToolCatalog.all().map { it.ref.name }.toSet()
-        assertEquals(jsonToolNames, catalogNames)
+        val jsonNames = (0 until jsonTools.length())
+            .map { jsonTools.getJSONObject(it).getString("name") }.toSet()
+        assertEquals(jsonNames, V1ToolCatalog.all().map { it.ref.name }.toSet())
+    }
+
+    @Test
+    fun `schema 版本：json schema_version 与代码单一事实源一致`() {
+        assertEquals(AiVersions.TOOL_SCHEMA_VERSION, jsonRoot.getString("schema_version"))
+    }
+
+    @Test
+    fun `全量比对：risk 等级与代码目录一致`() {
+        val riskMap = mapOf(
+            "LOW" to RiskLevel.LOW, "MEDIUM" to RiskLevel.MEDIUM, "HIGH" to RiskLevel.HIGH
+        )
+        for (i in 0 until jsonTools.length()) {
+            val tool = jsonTools.getJSONObject(i)
+            val name = tool.getString("name")
+            assertEquals(
+                "$name risk 不一致", riskMap.getValue(tool.getString("risk")),
+                contract(name).riskLevel
+            )
+        }
+    }
+
+    @Test
+    fun `全量比对：mode 与幂等要求一致（write 一律幂等）`() {
+        for (i in 0 until jsonTools.length()) {
+            val tool = jsonTools.getJSONObject(i)
+            val name = tool.getString("name")
+            val contract = contract(name)
+            if (tool.getString("mode") == "read") {
+                assertFalse("$name 只读工具不应要求幂等键", contract.idempotencyRequired)
+            } else {
+                assertTrue("$name 写工具必须要求幂等键", contract.idempotencyRequired)
+                assertTrue("$name 写工具必须在 json 声明 idempotent", tool.optBoolean("idempotent"))
+            }
+        }
+    }
+
+    @Test
+    fun `全量比对：confirmation 策略与代码目录一致`() {
+        val policyMap = mapOf(
+            "none" to ConfirmationPolicy.NONE,
+            "when_ambiguous" to ConfirmationPolicy.WHEN_AMBIGUOUS,
+            "required" to ConfirmationPolicy.REQUIRED,
+            "payment_confirmation" to ConfirmationPolicy.PAYMENT_CONFIRMATION,
+            "large_delta" to ConfirmationPolicy.LARGE_DELTA
+        )
+        for (i in 0 until jsonTools.length()) {
+            val tool = jsonTools.getJSONObject(i)
+            val name = tool.getString("name")
+            val expected = if (tool.has("confirmation")) {
+                policyMap.getValue(tool.getString("confirmation"))
+            } else {
+                ConfirmationPolicy.NONE
+            }
+            assertEquals("$name confirmation 不一致", expected, contract(name).confirmationPolicy)
+        }
     }
 
     @Test

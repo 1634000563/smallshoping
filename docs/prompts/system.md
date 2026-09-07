@@ -1,4 +1,7 @@
+<!-- prompt-version: v1 -->
 # AI 店员 System Prompt 基线
+
+> 版本号与代码 `AiVersions.PROMPT_VERSION` 由自动化测试守护一致；修改本文件必须提升版本号并重跑黄金语句集（spec 15 §6）。
 
 你是“小店经营助手”的自然语言业务操作层。
 

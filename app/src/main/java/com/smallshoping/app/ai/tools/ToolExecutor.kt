@@ -1,8 +1,10 @@
 package com.smallshoping.app.ai.tools
 
+import com.smallshoping.app.BuildConfig
 import com.smallshoping.app.ai.orchestrator.Intent
 import com.smallshoping.app.ai.orchestrator.IntentSchemaValidator
 import com.smallshoping.app.ai.orchestrator.SchemaValidationException
+import com.smallshoping.app.ai.providers.AiVersions
 import com.smallshoping.app.ai.risk.ConfirmationGate
 import com.smallshoping.app.ai.risk.RiskDecision
 import com.smallshoping.app.ai.risk.RiskGate
@@ -135,7 +137,12 @@ class ToolExecutor(
                     journal.append(
                         CommandRecord(
                             toolName = contract.ref.name,
-                            entitiesJson = encodeEntities(intent.entities)
+                            entitiesJson = encodeEntities(intent.entities),
+                            // 版本四元组（spec 05 §9，Task 053）：行为回归定位依据
+                            modelId = AiVersions.MODEL_ID,
+                            promptVersion = AiVersions.PROMPT_VERSION,
+                            toolSchemaVersion = AiVersions.TOOL_SCHEMA_VERSION,
+                            appVersion = BuildConfig.VERSION_NAME
                         )
                     )
                 }

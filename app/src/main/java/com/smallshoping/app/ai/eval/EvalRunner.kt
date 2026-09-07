@@ -2,6 +2,7 @@ package com.smallshoping.app.ai.eval
 
 import com.smallshoping.app.ai.providers.AiProvider
 import com.smallshoping.app.ai.providers.AiResponse
+import com.smallshoping.app.ai.providers.AiVersions
 import com.smallshoping.app.ai.providers.GatewayRequest
 import java.io.File
 
@@ -35,7 +36,10 @@ class EvalRunner(private val provider: AiProvider) {
         val total: Int,
         val passed: Int,
         val accuracy: Double,
-        val failures: List<CaseResult>
+        val failures: List<CaseResult>,
+        /** 评测所用 Prompt / Schema 版本（spec 05 §9）：回归时对照版本定位行为漂移。 */
+        val promptVersion: String = AiVersions.PROMPT_VERSION,
+        val toolSchemaVersion: String = AiVersions.TOOL_SCHEMA_VERSION
     ) {
         val pass: Boolean
             get() = accuracy >= PASS_THRESHOLD && failures.none { it.detail.contains(DANGEROUS) }

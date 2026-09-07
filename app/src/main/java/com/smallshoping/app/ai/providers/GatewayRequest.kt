@@ -10,8 +10,10 @@ data class GatewayRequest(
     val storeId: String,
     val deviceId: String,
     val appVersion: String,
-    val promptVersion: String = "v1",
-    val toolSchemaVersion: String = "v1",
+    /** Prompt 版本（spec 05 §9）：单一事实源 [AiVersions.PROMPT_VERSION]。 */
+    val promptVersion: String = AiVersions.PROMPT_VERSION,
+    /** Tool Schema 版本（spec 05 §9）：单一事实源 [AiVersions.TOOL_SCHEMA_VERSION]。 */
+    val toolSchemaVersion: String = AiVersions.TOOL_SCHEMA_VERSION,
     /** 老板原话 */
     val inputText: String,
     /** 当前会话最小引用 */

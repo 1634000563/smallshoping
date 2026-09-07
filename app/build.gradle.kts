@@ -40,6 +40,8 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // Architecture Guard 的代码级自动检查
     testImplementation("com.tngtech.archunit:archunit:1.3.0")
+    // Task 053：测试侧解析 tool-catalog.json（纯 JVM JSON 库）
+    testImplementation("org.json:json:20240303")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
 
     // Task 052 真机扫码：CameraX + MLKit 条码（standalone，离线可用，不依赖 Google Play 服务）

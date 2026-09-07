@@ -14,7 +14,16 @@ data class CommandRecord(
     val toolName: String,
     /** 入参编码（key=value&key=value），与 Handler 幂等键生成输入一致。 */
     val entitiesJson: String,
-    val createdAtMillis: Long = System.currentTimeMillis()
+    val createdAtMillis: Long = System.currentTimeMillis(),
+    /**
+     * AI 写操作版本四元组（spec 05 §9）：model_id / prompt_version /
+     * tool_schema_version / app_version，由 ToolExecutor 记录时填入。
+     * 空字符串表示未记录（如备份恢复的重放日志）。
+     */
+    val modelId: String = "",
+    val promptVersion: String = "",
+    val toolSchemaVersion: String = "",
+    val appVersion: String = ""
 ) {
 
     init {
