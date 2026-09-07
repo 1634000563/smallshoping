@@ -21,7 +21,8 @@ object QuantityParser {
     private val UNIT_MAP = mapOf(
         "斤" to Unit.JIN, "公斤" to Unit.KILOGRAM, "kg" to Unit.KILOGRAM,
         "克" to Unit.GRAM, "g" to Unit.GRAM,
-        "个" to Unit.PIECE, "盒" to Unit.BOX, "米" to Unit.METER
+        "个" to Unit.PIECE, "盒" to Unit.BOX, "米" to Unit.METER,
+        "块" to Unit.PIECE // Task 059：豆腐按块卖
     )
 
     /** 半斤=1/2 斤 等有理数表示 */

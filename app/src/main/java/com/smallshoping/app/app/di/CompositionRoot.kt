@@ -48,6 +48,7 @@ import com.smallshoping.app.data.repository.InMemoryPurchaseRepository
 import com.smallshoping.app.data.repository.InMemorySaleRepository
 import com.smallshoping.app.data.repository.InMemorySessionContextStore
 import com.smallshoping.app.domain.backup.BackupService
+import com.smallshoping.app.domain.catalog.ChangeCostPriceUseCase
 import com.smallshoping.app.domain.catalog.ChangeProductPriceUseCase
 import com.smallshoping.app.domain.catalog.YesterdayPriceQuery
 import com.smallshoping.app.domain.customer.CustomerDebtQuery
@@ -102,6 +103,7 @@ class CompositionRoot(
     private val resolver = ProductResolver(products)
 
     val changeProductPriceUseCase = ChangeProductPriceUseCase(products)
+    val changeCostPriceUseCase = ChangeCostPriceUseCase(products)
     val yesterdayPriceQuery = YesterdayPriceQuery(products)
 
     /** 历史查询（Task 035）：销售事实聚合，只读。 */
@@ -220,7 +222,9 @@ class CompositionRoot(
             ToolRef("remove_sale_item") to RemoveSaleItemHandler(
                 removeSaleItemUseCase, contexts, session
             ),
-            ToolRef("change_price") to ChangePriceHandler(resolver, changeProductPriceUseCase)
+            ToolRef("change_price") to ChangePriceHandler(
+                resolver, changeProductPriceUseCase, changeCostPriceUseCase
+            )
         )
     )
 

@@ -32,6 +32,13 @@ interface ProductRepository {
      * 原子改价：更新当前售价并追加价格历史（只追加不覆盖，spec 02）。
      * 商品不存在返回 null。
      */
+    /** 改进货价（Task 059）：更新当前成本 + 追加 COST 类型价格历史，只追加不覆盖。 */
+    fun applyCostChange(
+        productId: String,
+        newCost: com.smallshoping.app.core.money.Money,
+        history: PriceHistoryEntry
+    ): Product?
+
     fun applyPriceChange(
         productId: String,
         newPrice: com.smallshoping.app.core.money.Money,

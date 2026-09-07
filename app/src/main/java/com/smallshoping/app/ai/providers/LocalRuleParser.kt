@@ -112,6 +112,15 @@ class LocalRuleParser : AiProvider {
         CORRECTION_PATTERN.find(text)?.let {
             return AiResponse.ToolCall("remove_sale_item", emptyMap())
         }
+        // 土豆的进价改成两块五 / 土豆成本是两块五（Task 059：改进货价，置于售价改价之前）
+        COST_PRICE_PATTERN.find(text)?.let { m ->
+            val product = m.groupValues[1].trim()
+            val fen = parseMoney(m.groupValues[2]) ?: return clarification()
+            return AiResponse.ToolCall(
+                "change_price",
+                mapOf("product" to product, "price" to fen.toString(), "price_type" to "cost")
+            )
+        }
         // 土豆改价三块五 / 土豆改成四十块 / 土豆价格改为三块八 / 土豆的销售价格是四块（Task 059）
         CHANGE_PRICE_PATTERN.find(text)?.let { m ->
             val product = m.groupValues[1].trim()
@@ -485,13 +494,13 @@ class LocalRuleParser : AiProvider {
         /** 裸支付词结账（spec 17 路径 A：「微信。」）；无单场景由 Handler 明确提示。 */
         val BARE_PAYMENT_PATTERN = Regex("^(微信|支付宝|现金|会员)$")
         val QUANTITY_PATTERN =
-            Regex("^(?:卖|来|加|称|再来)(?:了|啦)?(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
+            Regex("^(?:卖|来|加|称|再来)(?:了|啦)?(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米|块)?\\s*(.+)$")
         // 「近」是键盘语音对「进」的常见同音误识别；「进了/进货/采购/买」口语兼容（Task 059）
         val PURCHASE_PATTERN =
-            Regex("^(?:进|近|进货|采购|买)[了]?(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
+            Regex("^(?:进|近|进货|采购|买)[了]?(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米|块)?\\s*(.+)$")
         /** 倒装入库：土豆进了100斤（Task 059） */
         val INVERTED_PURCHASE_PATTERN = Regex(
-            "^(.+?)[进近]了?(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?$"
+            "^(.+?)[进近]了?(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米|块)?$"
         )
         /** 补单：老张上次那些螺丝再来两盒（商品名可省略，由客户记忆兜底） */
         val REORDER_PATTERN = Regex(
@@ -514,6 +523,10 @@ class LocalRuleParser : AiProvider {
         val REMOVE_LAST_PATTERN = Regex("^(?:刚才那个|刚那个)(?:不要了|去掉|退了)$")
         /** 纠错句：不是X，是Y（spec 12 §6：先拿掉错的，再重说新的） */
         val CORRECTION_PATTERN = Regex("^不是.+?(?:，|,)?是.+$")
+        /** 改进货价：土豆的进价改成两块五 / 土豆成本是两块五（Task 059；排除进/买开头防误吞采购句） */
+        val COST_PRICE_PATTERN = Regex(
+            "^(?!进|买)(.+?)(?:的)?(?:进货价|进价|成本)(?:改成|改为|改到|改|是)\\s*($ARABIC_MONEY|$CHINESE_MONEY)\\s*元?$"
+        )
         /** 改价：土豆改价三块五 / 土豆改成四十块 / 土豆价格改为三块八（Task 059：改为/改到兼容） */
         val CHANGE_PRICE_PATTERN = Regex(
             "^(.+?)(?:的)?(?:价格)?改(?:价|成|为|到)\\s*($ARABIC_MONEY|$CHINESE_MONEY)\\s*元?$"
@@ -553,7 +566,7 @@ class LocalRuleParser : AiProvider {
         /** 数量前置：两斤半土豆（X量 商品，量可带「半」，单位必填防误吞条码/报价句） */
         val LEADING_QUANTITY_PATTERN = Regex(
             "^(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +
-                "(斤|公斤|kg|克|个|盒|米)(半)?\\s*(.+)$"
+                "(斤|公斤|kg|克|个|盒|米|块)(半)?\\s*(.+)$"
         )
         /** 数量后置：土豆两斤六 / 土豆要两斤（商品+数量，尾数字为 0.x 单位；要/来/卖可选） */
         val TRAILING_QUANTITY_PATTERN = Regex(
@@ -573,7 +586,7 @@ class LocalRuleParser : AiProvider {
         /** 损耗：土豆坏了2斤 */
         val LOSS_BROKEN_PATTERN = Regex(
             "^(.+?)坏了(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +
-                "(斤|公斤|kg|克|个|盒|米)?$"
+                "(斤|公斤|kg|克|个|盒|米|块)?$"
         )
         /** 充值金额：长形态优先（块毛>元>小数>整数），防 \d+ 提前截断「2块8」；含中文金额与「充钱/两百块钱」 */
         val RECHARGE_PATTERN =

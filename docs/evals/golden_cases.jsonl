@@ -76,3 +76,9 @@
 {"id": "dialect-005", "utterance": "买100斤土豆", "expected_intent": "PURCHASE_IN", "expected_tool": "purchase_in", "risk": "LOW", "clarification": false}
 {"id": "money-001", "utterance": "土豆卖三块五毛", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
 {"id": "money-002", "utterance": "老张还两毛五", "expected_intent": "SETTLE_CUSTOMER_DEBT", "expected_tool": "settle_customer_debt", "risk": "MEDIUM", "clarification": false}
+{"id": "cost-001", "utterance": "土豆的进价改成两块五", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
+{"id": "cost-002", "utterance": "土豆成本是两块五", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
+{"id": "unit-001", "utterance": "来2块豆腐", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
+{"id": "unit-002", "utterance": "卖四块豆腐", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
+{"id": "unit-003", "utterance": "进了100块豆腐", "expected_intent": "PURCHASE_IN", "expected_tool": "purchase_in", "risk": "LOW", "clarification": false}
+{"id": "unit-004", "utterance": "两块豆腐", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
