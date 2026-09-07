@@ -192,7 +192,8 @@ class CompositionRoot(
             ToolRef("checkout_sale") to CheckoutSaleHandler(
                 checkoutSaleUseCase,
                 contexts,
-                session
+                session,
+                members
             ),
             ToolRef("get_today_sales") to GetTodaySalesHandler(todaySalesSummary),
             ToolRef("purchase_in") to PurchaseInHandler(resolver, products, purchaseInUseCase, session),
@@ -236,7 +237,10 @@ class CompositionRoot(
         "find_member", "get_member_balance", "recharge_member",
         "apply_yesterday_price", "reorder_last_item", "record_loss",
         "record_customer_credit", "settle_customer_debt",
-        "remove_sale_item", "change_price"
+        "remove_sale_item", "change_price",
+        // Task 059 语音形态扩展：查询类只读工具（最小权限白名单内的只读扩展）
+        "get_stock", "get_customer_debt", "get_current_sale",
+        "get_month_sales", "get_profit_summary", "get_low_stock"
     )
 
     val inputAdapter = InputAdapter(session = session, allowedTools = allowedTools)

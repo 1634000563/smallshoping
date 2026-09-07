@@ -17,7 +17,9 @@ import com.smallshoping.app.domain.sales.PaymentMethod
 class CheckoutSaleHandler(
     private val checkout: CheckoutSaleUseCase,
     private val contexts: SessionContextStore,
-    private val session: StoreSession
+    private val session: StoreSession,
+    /** 会员名解析（Task 059「张姐买单」句式）。 */
+    private val members: com.smallshoping.app.domain.member.MemberRepository? = null
 ) : ToolHandler {
 
     override fun execute(entities: Map<String, String>): Map<String, String> {
@@ -32,9 +34,13 @@ class CheckoutSaleHandler(
                 "status" to "NO_ACTIVE_SALE", "sale_id" to "", "paid_minor" to "",
                 "message" to "还没有未结账的单子，先说「卖两斤土豆」这样的句子吧"
             )
-        // 会员余额支付：会员取会话上下文最近会员（Task 047）
+        // 会员余额支付：优先取句子里报的会员名（Task 059），否则会话上下文最近会员（Task 047）
         val memberId = if (method == PaymentMethod.MEMBER) {
-            context.lastMemberId ?: return mapOf(
+            val named = entities["member"]?.takeIf { it.isNotBlank() }
+                ?.let { name ->
+                    members?.findByNormalizedName(com.smallshoping.app.core.common.normalize(name))?.id
+                }
+            named ?: context.lastMemberId ?: return mapOf(
                 "status" to "INVALID_ARGUMENT", "sale_id" to "", "paid_minor" to "",
                 "message" to "用会员余额结账要先报会员（如：给张姐充200）"
             )

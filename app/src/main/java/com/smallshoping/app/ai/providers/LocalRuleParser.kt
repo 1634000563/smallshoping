@@ -29,6 +29,10 @@ class LocalRuleParser : AiProvider {
                     "账务事实只追加不删除，V1 不提供删除。如需修正请说「损耗/调整/退款」。"
                 )
 
+            // 「本月」月报优先于「今天卖了多少钱」的 contains 匹配（Task 059）
+            MONTH_SALES_PATTERN.matches(text) ->
+                AiResponse.ToolCall("get_month_sales", emptyMap())
+
             text.contains("卖了多少") || text.contains("卖了多少钱") || text == "今天卖了多少" ->
                 AiResponse.ToolCall("get_today_sales", emptyMap())
 
@@ -50,7 +54,14 @@ class LocalRuleParser : AiProvider {
         BARE_PAYMENT_PATTERN.find(text)?.let { m ->
             return AiResponse.ToolCall("checkout_sale", mapOf("payment_method" to paymentMethod(m.groupValues[1])))
         }
-        // 结账/买单（V1 默认现金手工确认；具体方式可显式说明）
+        // 张姐买单（Task 059：报会员名用余额结账）
+        MEMBER_PAY_PATTERN.find(text)?.let { m ->
+            return AiResponse.ToolCall(
+                "checkout_sale",
+                mapOf("payment_method" to "member", "member" to m.groupValues[1].trim())
+            )
+        }
+        // 结账/买单/结一下账（V1 默认现金手工确认；具体方式可显式说明）
         CHECKOUT_PATTERN.find(text)?.let { m ->
             return AiResponse.ToolCall("checkout_sale", mapOf("payment_method" to paymentMethod(m.groupValues[1])))
         }
@@ -151,6 +162,36 @@ class LocalRuleParser : AiProvider {
         CURRENT_SALE_PATTERN.find(text)?.let {
             return AiResponse.ToolCall("get_current_sale", emptyMap())
         }
+        // 今天赚了多少 / 哪些货快没了（Task 059：报表变体；本月句在 complete() 优先匹配）
+        PROFIT_PATTERN.find(text)?.let { return AiResponse.ToolCall("get_profit_summary", emptyMap()) }
+        LOW_STOCK_PATTERN.find(text)?.let { return AiResponse.ToolCall("get_low_stock", emptyMap()) }
+        // 倒装入库：土豆进了100斤（Task 059，置于数量后置之前防误判为售卖）
+        INVERTED_PURCHASE_PATTERN.find(text)?.let { m ->
+            val product = m.groupValues[1].trim()
+            val quantity = toArabicNumber(m.groupValues[2]) ?: return clarification()
+            val unit = m.groupValues[3].ifBlank { "斤" }
+            return AiResponse.ToolCall(
+                "purchase_in",
+                mapOf("product" to product, "quantity" to "$quantity$unit", "cost" to "", "note" to "")
+            )
+        }
+        // 土豆多少钱一斤（报价查询，置于数量后置之前防误判）
+        PRICE_QUERY_PATTERN.find(text)?.let { m ->
+            return AiResponse.ToolCall(
+                "find_product",
+                mapOf("query" to cleanProductQuery(m.groupValues[1]))
+            )
+        }
+        // 倒装损耗：半斤土豆坏了（Task 059，置于数量前置之前防误判为售卖）
+        INVERTED_LOSS_PATTERN.find(text)?.let { m ->
+            val quantity = toArabicNumber(m.groupValues[1]) ?: return clarification()
+            val unit = m.groupValues[2].ifBlank { "斤" }
+            val product = m.groupValues[3].trim()
+            return AiResponse.ToolCall(
+                "record_loss",
+                mapOf("product" to product, "quantity" to "$quantity$unit")
+            )
+        }
         // 数量前置：两斤半土豆（Task 038，无「卖/来」前缀）
         LEADING_QUANTITY_PATTERN.find(text)?.let { m ->
             val num = toArabicNumber(m.groupValues[1]) ?: return clarification()
@@ -221,7 +262,7 @@ class LocalRuleParser : AiProvider {
                 )
             )
         }
-        // 商品 多少钱（Task 059：支持「多少钱一斤/一个/一盒」报价带单位）
+        // 商品 多少钱（已上移至数量后置之前；此处仅保留无单位基础形兜底）
         PRICE_QUERY_PATTERN.find(text)?.let { m ->
             return AiResponse.ToolCall(
                 "find_product",
@@ -409,14 +450,20 @@ class LocalRuleParser : AiProvider {
         /** 中文金额形态（语音键盘直出：两块八/两百/五毛）。 */
         val CHINESE_MONEY = "[一两二三四五六七八九十百零半]+(?:块[一两二三四五六七八九半零]*|毛|元)?"
         // 「结帐」为常见同音/异体误写，兼容之
-        val CHECKOUT_PATTERN = Regex("^(?:结账|结帐|买单|(微信|支付宝|现金|会员)(?:结账|结帐))$")
+        val CHECKOUT_PATTERN = Regex("^(?:结(?:一下)?账|结帐|买单|(微信|支付宝|现金|会员)(?:结账|结帐))$")
+        /** 张姐买单：会员余额结账（Task 059） */
+        val MEMBER_PAY_PATTERN = Regex("^(.+?)买单$")
         /** 裸支付词结账（spec 17 路径 A：「微信。」）；无单场景由 Handler 明确提示。 */
         val BARE_PAYMENT_PATTERN = Regex("^(微信|支付宝|现金|会员)$")
         val QUANTITY_PATTERN =
-            Regex("^(?:卖|来|加)了?(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
-        // 「近」是键盘语音对「进」的常见同音误识别；「进了」口语兼容（Task 059）
+            Regex("^(?:卖|来|加|称|再来)了?(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
+        // 「近」是键盘语音对「进」的常见同音误识别；「进了/进货/采购」口语兼容（Task 059）
         val PURCHASE_PATTERN =
-            Regex("^[进近]了?(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
+            Regex("^(?:进|近|进货|采购)[了]?(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
+        /** 倒装入库：土豆进了100斤（Task 059） */
+        val INVERTED_PURCHASE_PATTERN = Regex(
+            "^(.+?)[进近]了?(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?$"
+        )
         /** 补单：老张上次那些螺丝再来两盒（商品名可省略，由客户记忆兜底） */
         val REORDER_PATTERN = Regex(
             "^(.+?)上次(?:那些|那个|的)?\\s*(.*?)再来" +
@@ -464,20 +511,31 @@ class LocalRuleParser : AiProvider {
         val DEBT_QUERY_PATTERN = Regex("^(.+?)欠(?:了)?多少(?:钱)?$")
         /** 当前单查询：现在有什么（Task 059） */
         val CURRENT_SALE_PATTERN = Regex("^(?:现在|当前)有什么(?:货|单)?$")
+        /** 毛利查询：今天赚了多少（Task 059） */
+        val PROFIT_PATTERN = Regex("^(?:今天)?赚(?:了)?多少(?:钱)?$")
+        /** 月报：本月卖了多少钱（Task 059） */
+        val MONTH_SALES_PATTERN = Regex("^(?:本月|这个月)(?:卖了多少钱|卖了多少|卖了多少货)?$")
+        /** 缺货：哪些货快没了（Task 059） */
+        val LOW_STOCK_PATTERN = Regex("^(?:哪些|什么)(?:货|商品)(?:快没了|不多了|缺货)$")
         /** 数量前置：两斤半土豆（X量 商品，量可带「半」，单位必填防误吞条码/报价句） */
         val LEADING_QUANTITY_PATTERN = Regex(
             "^(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +
                 "(斤|公斤|kg|克|个|盒|米)(半)?\\s*(.+)$"
         )
-        /** 数量后置：土豆两斤六（商品+数量，尾数字为 0.x 单位） */
+        /** 数量后置：土豆两斤六 / 土豆要两斤（商品+数量，尾数字为 0.x 单位；要/来/卖可选） */
         val TRAILING_QUANTITY_PATTERN = Regex(
-            "^(.+?)([一两二三四五六七八九十]|\\d+(?:\\.\\d+)?)\\s*" +
+            "^(.+?)(?:要|来|卖)?([一两二三四五六七八九十]|\\d+(?:\\.\\d+)?)\\s*" +
                 "(斤|公斤|kg|克|个|盒|米)([一二三四五六七八九半])?$"
         )
-        /** 损耗：损耗两斤土豆（单位缺省按斤） */
+        /** 损耗：损耗两斤土豆 / 坏了半斤土豆（单位缺省按斤，Task 059） */
         val LOSS_PATTERN = Regex(
-            "^损耗(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +
+            "^(?:损耗|坏了)(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +
                 "(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$"
+        )
+        /** 倒装损耗：半斤土豆坏了（Task 059，置于数量前置之前） */
+        val INVERTED_LOSS_PATTERN = Regex(
+            "^(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +
+                "(斤|公斤|kg|克|个|盒|米)(.+?)坏了$"
         )
         /** 损耗：土豆坏了2斤 */
         val LOSS_BROKEN_PATTERN = Regex(

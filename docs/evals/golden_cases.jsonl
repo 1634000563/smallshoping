@@ -47,3 +47,15 @@
 {"id": "ux-017", "utterance": "老张还钱100", "expected_intent": "SETTLE_CUSTOMER_DEBT", "expected_tool": "settle_customer_debt", "risk": "MEDIUM", "clarification": false}
 {"id": "ux-018", "utterance": "刚才那个去掉", "expected_intent": "REMOVE_SALE_ITEM", "expected_tool": "remove_sale_item", "risk": "MEDIUM", "clarification": false}
 {"id": "ux-019", "utterance": "把土豆改成四块", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
+{"id": "ux-020", "utterance": "称两斤土豆", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
+{"id": "ux-021", "utterance": "再来两斤土豆", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
+{"id": "ux-022", "utterance": "土豆要两斤", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
+{"id": "ux-023", "utterance": "进货100斤土豆", "expected_intent": "PURCHASE_IN", "expected_tool": "purchase_in", "risk": "LOW", "clarification": false}
+{"id": "ux-024", "utterance": "土豆进了100斤", "expected_intent": "PURCHASE_IN", "expected_tool": "purchase_in", "risk": "LOW", "clarification": false}
+{"id": "ux-025", "utterance": "坏了半斤土豆", "expected_intent": "RECORD_LOSS", "expected_tool": "record_loss", "risk": "MEDIUM", "clarification": false}
+{"id": "ux-026", "utterance": "半斤土豆坏了", "expected_intent": "RECORD_LOSS", "expected_tool": "record_loss", "risk": "MEDIUM", "clarification": false}
+{"id": "ux-027", "utterance": "今天赚了多少", "expected_intent": "GET_PROFIT_SUMMARY", "expected_tool": "get_profit_summary", "risk": "LOW", "clarification": false}
+{"id": "ux-028", "utterance": "本月卖了多少钱", "expected_intent": "GET_MONTH_SALES", "expected_tool": "get_month_sales", "risk": "LOW", "clarification": false}
+{"id": "ux-029", "utterance": "哪些货快没了", "expected_intent": "GET_LOW_STOCK", "expected_tool": "get_low_stock", "risk": "LOW", "clarification": false}
+{"id": "ux-030", "utterance": "结一下账", "expected_intent": "CHECKOUT_SALE", "expected_tool": "checkout_sale", "risk": "MEDIUM", "clarification": false}
+{"id": "ux-031", "utterance": "张姐买单", "expected_intent": "CHECKOUT_SALE", "expected_tool": "checkout_sale", "risk": "MEDIUM", "clarification": false}
