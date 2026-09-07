@@ -16,6 +16,7 @@ import com.smallshoping.app.core.money.MoneyParser
  * - 「给张姐充200」→ RECHARGE_MEMBER（金额元→分）
  * - 「进100斤土豆」「进100斤土豆，2块8」→ PURCHASE_IN（进价可带「成本/进价」或紧跟逗号）
  * - 「微信。」「微信结账」→ CHECKOUT_SALE（裸支付词结账，spec 17 路径 A）
+ * - 「建商品螺丝，卖5块」→ CREATE_PRODUCT（Task 057 无网新建商品，卖价可选）
  */
 class LocalRuleParser : AiProvider {
 
@@ -211,6 +212,17 @@ class LocalRuleParser : AiProvider {
                 mapOf("member" to member, "amount" to fen.toString())
             )
         }
+        // 建商品螺丝，卖5块（Task 057：无网新建商品，非 AI 兜底完整性；
+        // 卖价可选，未给按 0 元入库再由老板改价，绝不猜测）
+        CREATE_PRODUCT_PATTERN.find(text)?.let { m ->
+            val name = m.groupValues[1].trim()
+            val price = m.groupValues[2].takeIf { it.isNotBlank() }
+                ?.let { raw -> MoneyParser.parseYuanToMinor(raw) ?: return clarification() }
+            return AiResponse.ToolCall(
+                "create_product",
+                mapOf("name" to name) + if (price != null) mapOf("price" to price.toString()) else emptyMap()
+            )
+        }
         // 进 X斤 商品[，成本/进价 Y]
         PURCHASE_PATTERN.find(text)?.let { m ->
             val rawQuantity = m.groupValues[1]
@@ -340,6 +352,10 @@ class LocalRuleParser : AiProvider {
         /** 充值金额：长形态优先（块毛>元>小数>整数），防止 \d+ 提前截断「2块8」 */
         val RECHARGE_PATTERN =
             Regex("^给?(.+?)充(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$")
+        /** 建商品（Task 057）：建[一个/个]商品[叫]X[，卖Y]；卖价可选 */
+        val CREATE_PRODUCT_PATTERN = Regex(
+            "^建(?:一个|个)?商品(?:叫)?(.+?)(?:，?\\s*卖\\s*(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+))?$"
+        )
         /** 成本/进价金额：长形态优先，防止 \d+ 提前截断「2块8」 */
         val COST_PATTERN = Regex("(?:成本|进价)\\s*(\\d+块\\d?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)")
         /** 逗号后裸进价（spec 17 路径 A：「进100斤土豆，2块8」）；仅块/元形态防误吞数量 */

@@ -26,3 +26,4 @@
 {"id": "plumb-002", "utterance": "PVC管多少钱", "expected_intent": "FIND_PRODUCT", "expected_tool": "find_product", "risk": "LOW", "clarification": false}
 {"id": "pay-001", "utterance": "微信", "expected_intent": "CHECKOUT_SALE", "expected_tool": "checkout_sale", "risk": "MEDIUM", "clarification": false}
 {"id": "veg-013", "utterance": "进100斤土豆，2块8", "expected_intent": "PURCHASE_IN", "expected_tool": "purchase_in", "risk": "LOW", "clarification": false}
+{"id": "prod-001", "utterance": "建商品螺丝，卖5块", "expected_intent": "CREATE_PRODUCT", "expected_tool": "create_product", "risk": "MEDIUM", "clarification": false}
