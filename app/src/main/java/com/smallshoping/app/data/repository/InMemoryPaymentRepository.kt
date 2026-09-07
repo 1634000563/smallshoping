@@ -9,7 +9,10 @@ import com.smallshoping.app.domain.sales.PaymentMethod
 /**
  * 内存支付记录实现：线程安全，幂等键去重，状态迁移只改本行。
  */
-class InMemoryPaymentRepository : PaymentRepository {
+class InMemoryPaymentRepository(
+    /** 写穿钩子（Task 059 SQLite 持久化）；null 时纯内存。 */
+    private val persist: com.smallshoping.app.data.sqlite.PaymentPersistence? = null
+) : PaymentRepository {
 
     private val lock = Any()
     private val byId = LinkedHashMap<String, Payment>()
@@ -21,6 +24,7 @@ class InMemoryPaymentRepository : PaymentRepository {
         }
         byId[payment.id] = payment
         byKey[payment.idempotencyKey] = payment
+        persist?.onPayment(payment)
         RecordPaymentResult.Recorded(payment)
     }
 
@@ -40,6 +44,7 @@ class InMemoryPaymentRepository : PaymentRepository {
             confirmedAtMillis = System.currentTimeMillis()
         )
         byId[paymentId] = updated
+        persist?.onPayment(updated)
         updated
     }
 
@@ -48,6 +53,7 @@ class InMemoryPaymentRepository : PaymentRepository {
         if (payment.status != PaymentStatus.PENDING) return null
         val updated = payment.copy(status = status)
         byId[paymentId] = updated
+        persist?.onPayment(updated)
         updated
     }
 
@@ -55,5 +61,6 @@ class InMemoryPaymentRepository : PaymentRepository {
     fun wipe() = synchronized(lock) {
         byId.clear()
         byKey.clear()
+        persist?.onPaymentWipe()
     }
 }

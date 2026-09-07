@@ -12,7 +12,11 @@ import com.smallshoping.app.domain.ledger.LedgerEntry
  * 语义基线同 [com.smallshoping.app.data.ledger.InMemoryLedger]：
  * 真实持久化实现（Room/SQLite）须通过同一组测试。
  */
-class InMemoryLossRepository(private val ledger: Ledger) : LossRepository {
+class InMemoryLossRepository(
+    private val ledger: Ledger,
+    /** 写穿钩子（Task 059 SQLite 持久化）；null 时纯内存。 */
+    private val persist: com.smallshoping.app.data.sqlite.LossPersistence? = null
+) : LossRepository {
 
     private val lock = Any()
     private val byId = LinkedHashMap<String, LossRecord>()
@@ -22,6 +26,7 @@ class InMemoryLossRepository(private val ledger: Ledger) : LossRepository {
             when (val result = ledger.append(entry)) {
                 is com.smallshoping.app.domain.ledger.AppendResult.Appended -> {
                     byId[loss.id] = loss
+                    persist?.onLoss(loss)
                     LossOutcome.Completed(loss)
                 }
 
@@ -34,6 +39,13 @@ class InMemoryLossRepository(private val ledger: Ledger) : LossRepository {
                 }
             }
         }
+
+    /** 启动水合：恢复损耗单（流水已在账本表恢复，此处不重复记库存流水）。 */
+    fun restore(loss: LossRecord) {
+        synchronized(lock) {
+            byId[loss.id] = loss
+        }
+    }
 
     /** 全部损耗记录（按写入顺序）。 */
     fun all(): List<LossRecord> = synchronized(lock) { byId.values.toList() }

@@ -1,7 +1,11 @@
 package com.smallshoping.app.core.quantity
 
-/** 解析结果：规范数量（基本单位刻度）+ 原始展示文本。 */
-data class ParsedQuantity(val quantity: Quantity, val displayText: String)
+/** 解析结果：规范数量（基本单位刻度）+ 原始展示文本 + 来源单位（Task 059 建商品用）。 */
+data class ParsedQuantity(
+    val quantity: Quantity,
+    val displayText: String,
+    val sourceUnit: Unit? = null
+)
 
 /**
  * 数量文本解析（称重精度规则，Task 018）：
@@ -54,7 +58,7 @@ object QuantityParser {
         if (product % denominator != 0L) return null
         val baseScaled = product / denominator
         val baseUnit = Unit.baseUnitFor(unit.dimension)
-        return ParsedQuantity(Quantity(baseScaled, baseUnit), text.trim())
+        return ParsedQuantity(Quantity(baseScaled, baseUnit), text.trim(), unit)
     }
 
     private fun powerOf10(n: Int): Long {

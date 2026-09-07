@@ -1,5 +1,6 @@
 package com.smallshoping.app.data.repository
 
+import com.smallshoping.app.data.sqlite.ProductPersistence
 import com.smallshoping.app.domain.catalog.PriceHistoryEntry
 import com.smallshoping.app.domain.catalog.Product
 import com.smallshoping.app.domain.catalog.ProductAlias
@@ -15,7 +16,10 @@ import com.smallshoping.app.core.quantity.Unit
  * 语义基线同 [com.smallshoping.app.data.ledger.InMemoryLedger]：
  * 真实持久化实现（Room/SQLite）须通过同一组测试。
  */
-class InMemoryProductRepository : ProductRepository {
+class InMemoryProductRepository(
+    /** 写穿钩子（Task 059 SQLite 持久化）；null 时纯内存。 */
+    private val persist: ProductPersistence? = null
+) : ProductRepository {
 
     private val lock = Any()
     private val byId = LinkedHashMap<String, Product>()
@@ -30,9 +34,12 @@ class InMemoryProductRepository : ProductRepository {
     private val barcodeList = LinkedHashMap<String, MutableList<ProductBarcode>>()
     private val barcodeIndex = HashMap<String, Product>() // barcode → 商品
 
-    override fun saveProduct(product: Product) = synchronized(lock) {
-        byId[product.id] = product
-        byName[product.normalizedName] = product
+    override fun saveProduct(product: Product) {
+        synchronized(lock) {
+            byId[product.id] = product
+            byName[product.normalizedName] = product
+            persist?.onSaveProduct(product)
+        }
     }
 
     override fun findProductById(id: String): Product? = synchronized(lock) {
@@ -56,6 +63,7 @@ class InMemoryProductRepository : ProductRepository {
             require(byId.containsKey(alias.productId)) { "别名指向的商品不存在：${alias.productId}" }
             byAlias[alias.normalizedAlias] = byId.getValue(alias.productId)
             aliasList.getOrPut(alias.productId) { ArrayList() }.add(alias)
+            persist?.onAlias(alias)
         }
     }
 
@@ -77,6 +85,8 @@ class InMemoryProductRepository : ProductRepository {
         byId[productId] = updated
         byName[updated.normalizedName] = updated
         priceHistoryList.getOrPut(productId) { ArrayList() }.add(history)
+        persist?.onSaveProduct(updated)
+        persist?.onPriceHistory(history)
         updated
     }
 
@@ -84,12 +94,16 @@ class InMemoryProductRepository : ProductRepository {
     fun appendPriceHistory(entry: PriceHistoryEntry) = synchronized(lock) {
         require(byId.containsKey(entry.productId)) { "价格历史指向的商品不存在：${entry.productId}" }
         priceHistoryList.getOrPut(entry.productId) { ArrayList() }.add(entry)
+        persist?.onPriceHistory(entry)
     }
 
-    override fun addAttribute(attribute: ProductAttribute) = synchronized(lock) {
-        require(byId.containsKey(attribute.productId)) { "属性指向的商品不存在：${attribute.productId}" }
-        attributeList.getOrPut(attribute.productId) { ArrayList() }.add(attribute)
-        attributeIndex["${attribute.productId}|${attribute.normalizedName}"] = attribute
+    override fun addAttribute(attribute: ProductAttribute) {
+        synchronized(lock) {
+            require(byId.containsKey(attribute.productId)) { "属性指向的商品不存在：${attribute.productId}" }
+            attributeList.getOrPut(attribute.productId) { ArrayList() }.add(attribute)
+            attributeIndex["${attribute.productId}|${attribute.normalizedName}"] = attribute
+            persist?.onAttribute(attribute)
+        }
     }
 
     override fun attributes(productId: String): List<ProductAttribute> = synchronized(lock) {
@@ -101,12 +115,15 @@ class InMemoryProductRepository : ProductRepository {
             attributeIndex["$productId|$normalizedName"]
         }
 
-    override fun addConversion(conversion: UnitConversion) = synchronized(lock) {
-        require(byId.containsKey(conversion.productId)) { "换算指向的商品不存在：${conversion.productId}" }
-        conversionList.getOrPut(conversion.productId) { ArrayList() }.add(conversion)
-        conversionIndex[
-            "${conversion.productId}|${conversion.fromUnit.code}|${conversion.toUnit.code}"
-        ] = conversion
+    override fun addConversion(conversion: UnitConversion) {
+        synchronized(lock) {
+            require(byId.containsKey(conversion.productId)) { "换算指向的商品不存在：${conversion.productId}" }
+            conversionList.getOrPut(conversion.productId) { ArrayList() }.add(conversion)
+            conversionIndex[
+                "${conversion.productId}|${conversion.fromUnit.code}|${conversion.toUnit.code}"
+            ] = conversion
+            persist?.onConversion(conversion)
+        }
     }
 
     override fun conversions(productId: String): List<UnitConversion> = synchronized(lock) {
@@ -118,10 +135,13 @@ class InMemoryProductRepository : ProductRepository {
             conversionIndex["$productId|${fromUnit.code}|${toUnit.code}"]
         }
 
-    override fun addBarcode(barcode: ProductBarcode) = synchronized(lock) {
-        require(byId.containsKey(barcode.productId)) { "条码指向的商品不存在：${barcode.productId}" }
-        barcodeList.getOrPut(barcode.productId) { ArrayList() }.add(barcode)
-        barcodeIndex[barcode.barcode] = byId.getValue(barcode.productId)
+    override fun addBarcode(barcode: ProductBarcode) {
+        synchronized(lock) {
+            require(byId.containsKey(barcode.productId)) { "条码指向的商品不存在：${barcode.productId}" }
+            barcodeList.getOrPut(barcode.productId) { ArrayList() }.add(barcode)
+            barcodeIndex[barcode.barcode] = byId.getValue(barcode.productId)
+            persist?.onBarcode(barcode)
+        }
     }
 
     override fun findByBarcode(barcode: String): Product? = synchronized(lock) {

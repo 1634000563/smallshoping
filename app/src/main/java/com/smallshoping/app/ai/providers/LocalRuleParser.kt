@@ -21,7 +21,7 @@ import com.smallshoping.app.core.money.MoneyParser
 class LocalRuleParser : AiProvider {
 
     override fun complete(request: GatewayRequest): AiResponse {
-        val text = normalize(request.inputText)
+        val text = preprocess(normalize(request.inputText))
         return when {
             // 删除类语句：V1 确定性拒绝（spec 04 事实只追加不删除；spec 08 §8 禁止物理删除）
             text.contains("删除") || text.contains("删掉") || text.contains("抹掉") ->
@@ -78,7 +78,7 @@ class LocalRuleParser : AiProvider {
         }
         CREDIT_AMOUNT_PATTERN.find(text)?.let { m ->
             val customer = m.groupValues[1].trim()
-            val fen = MoneyParser.parseYuanToMinor(m.groupValues[2]) ?: return clarification()
+            val fen = parseMoney(m.groupValues[2]) ?: return clarification()
             return AiResponse.ToolCall(
                 "record_customer_credit",
                 mapOf("customer" to customer, "amount" to fen.toString())
@@ -86,7 +86,7 @@ class LocalRuleParser : AiProvider {
         }
         SETTLE_PATTERN.find(text)?.let { m ->
             val customer = m.groupValues[1].trim()
-            val fen = MoneyParser.parseYuanToMinor(m.groupValues[2]) ?: return clarification()
+            val fen = parseMoney(m.groupValues[2]) ?: return clarification()
             return AiResponse.ToolCall(
                 "settle_customer_debt",
                 mapOf("customer" to customer, "amount" to fen.toString())
@@ -101,24 +101,10 @@ class LocalRuleParser : AiProvider {
         CORRECTION_PATTERN.find(text)?.let {
             return AiResponse.ToolCall("remove_sale_item", emptyMap())
         }
-        // 土豆改价三块五 / 土豆改成四十块（Task 038：改价）
+        // 土豆改价三块五 / 土豆改成四十块 / 土豆价格改为三块八（Task 038/059：改价）
         CHANGE_PRICE_PATTERN.find(text)?.let { m ->
             val product = m.groupValues[1].trim()
-            val rawMoney = m.groupValues[2]
-            val fen = if (m.groupValues[3].isNotBlank()) {
-                // 中文块形态：三块五 → 350 分；四十块 → 4000 分（纯整数运算）
-                val yuan = chineseToInt(m.groupValues[3])
-                    ?: return clarification()
-                val jiao = m.groupValues[4].takeIf { it.isNotBlank() }
-                    ?.let { chineseDigit(it) } ?: 0L
-                Math.addExact(Math.multiplyExact(yuan, 100L), Math.multiplyExact(jiao, 10L))
-            } else {
-                // 阿拉伯金额转分（三块五等已在上支处理）
-                val arabic = rawMoney.map { c ->
-                    CHINESE_NUMERALS[c.toString()]?.toString() ?: c.toString()
-                }.joinToString("")
-                MoneyParser.parseYuanToMinor(arabic) ?: return clarification()
-            }
+            val fen = parseMoney(m.groupValues[2]) ?: return clarification()
             return AiResponse.ToolCall(
                 "change_price",
                 mapOf("product" to product, "price" to fen.toString())
@@ -208,10 +194,10 @@ class LocalRuleParser : AiProvider {
                 mapOf("query" to m.groupValues[1].trim())
             )
         }
-        // 给 X 充 Y 元（「给」可省略；金额支持 200 / 200元 / 2块8）
+        // 给 X 充 Y 元（「给」可省略；金额支持 200 / 200元 / 2块8 / 两百 / 两块八）
         RECHARGE_PATTERN.find(text)?.let { m ->
             val member = m.groupValues[1].trim()
-            val fen = MoneyParser.parseYuanToMinor(m.groupValues[2]) ?: return clarification()
+            val fen = parseMoney(m.groupValues[2]) ?: return clarification()
             return AiResponse.ToolCall(
                 "recharge_member",
                 mapOf("member" to member, "amount" to fen.toString())
@@ -255,7 +241,8 @@ class LocalRuleParser : AiProvider {
                 mapOf(
                     "product" to product,
                     "quantity" to "$quantity$unit",
-                    "cost" to (cost ?: ""),
+                    // 中文金额（两块八）转元文本交 Handler；阿拉伯形态原样透传
+                    "cost" to (cost?.let { chineseMoneyToMinor(it)?.let { fen -> fenToYuanText(fen) } ?: it } ?: ""),
                     "note" to (note ?: "")
                 )
             )
@@ -269,6 +256,60 @@ class LocalRuleParser : AiProvider {
         "支付宝" -> "alipay"
         "会员" -> "member"
         else -> "cash"
+    }
+
+    /**
+     * 语音键盘输出的纠错预处理（Task 059 真机验收）：
+     * 去句尾标点、口语助词前缀/后缀、常见同音字——让语音直出的句子
+     * 也能命中确定性句式。保守白名单，不做语义猜测。
+     */
+    private fun preprocess(raw: String): String {
+        var t = raw.trim()
+        t = t.replace(Regex("[。！？!?；;]+$"), "")
+        t = t.replace(Regex("^(我想|我想说|帮我|给我|麻烦|请帮我|我要)"), "")
+        t = t.replace(Regex("(吧|呢|啊|呀|哈|一下|谢谢)$"), "")
+        t = t.replace("结帐", "结账")
+        return t
+    }
+
+    /** 分 → 元文本（如 280 → "2.80"），供 Handler 的元解析复用；纯整数运算。 */
+    private fun fenToYuanText(fen: Long): String =
+        if (fen % 100L == 0L) "${fen / 100L}"
+        else "${fen / 100L}.${(fen % 100L).toString().padStart(2, '0')}"
+
+    /** 金额 → 分：中文形态（两块八/两百/五毛）先解析，否则交 MoneyParser（阿拉伯形态）。 */
+    private fun parseMoney(raw: String): Long? =
+        chineseMoneyToMinor(raw) ?: MoneyParser.parseYuanToMinor(raw)
+
+    /**
+     * 中文金额 → 分（纯整数运算）：两块八→280、三块五→350、
+     * 两百→20000、一百零二→10200、五毛→50；非中文金额返回 null。
+     */
+    private fun chineseMoneyToMinor(raw: String): Long? {
+        var r = raw.trim().removeSuffix("元")
+        if (r.isEmpty() || r.all { it.isDigit() || it == '.' }) return null // 阿拉伯形态交 MoneyParser
+        val kuai = Regex("^(.+?)块(.*)$").find(r)
+        if (kuai != null) {
+            val yuan = chineseToInt(kuai.groupValues[1]) ?: return null
+            val rest = kuai.groupValues[2]
+            val jiaoFen = when {
+                rest.isEmpty() -> 0L
+                rest == "半" -> 50L
+                rest.length == 1 -> (chineseDigit(rest) ?: return null) * 10L
+                rest.length == 2 -> {
+                    val d1 = chineseDigit(rest[0].toString()) ?: return null
+                    val d2 = chineseDigit(rest[1].toString()) ?: return null
+                    d1 * 10L + d2
+                }
+                else -> return null
+            }
+            return Math.addExact(Math.multiplyExact(yuan, 100L), jiaoFen)
+        }
+        val mao = Regex("^(.+?)毛$").find(r)
+        if (mao != null) {
+            return Math.multiplyExact(chineseToInt(mao.groupValues[1]) ?: return null, 10L)
+        }
+        return chineseToInt(r)?.let { Math.multiplyExact(it, 100L) }
     }
 
     /** 单个中文数字（含「两」「半」）转阿拉伯数字；复合数字（如十五）暂不支持。 */
@@ -285,10 +326,25 @@ class LocalRuleParser : AiProvider {
         else -> null
     }
 
-    /** 复合中文数字转整数（纯整数运算）：四十→40、十五→15、四十五→45、三→3。 */
+    /** 复合中文数字转整数（纯整数运算）：四十→40、十五→15、四十五→45、两百→200、
+     *  两百五→250（口语省十）、两百五十→250、一百零二→102、三→3。 */
     private fun chineseToInt(raw: String): Long? {
         if (raw.length == 1) return chineseDigit(raw)
         return when {
+            raw.length == 2 && raw[1] == '百' ->
+                chineseDigit(raw[0].toString())?.let { it * 100 }
+            raw.length == 4 && raw[1] == '百' && raw[2] == '零' ->
+                chineseDigit(raw[0].toString())?.let { a ->
+                    chineseDigit(raw[3].toString())?.let { a * 100 + it }
+                }
+            raw.length == 3 && raw[1] == '百' ->
+                chineseDigit(raw[0].toString())?.let { a ->
+                    chineseDigit(raw[2].toString())?.let { a * 100 + it * 10 }
+                }
+            raw.length == 4 && raw[1] == '百' && raw[3] == '十' ->
+                chineseDigit(raw[0].toString())?.let { a ->
+                    chineseDigit(raw[2].toString())?.let { a * 100 + it * 10 }
+                }
             raw.length == 2 && raw[1] == '十' ->
                 chineseDigit(raw[0].toString())?.let { it * 10 }
             raw.length == 2 && raw[0] == '十' ->
@@ -301,13 +357,19 @@ class LocalRuleParser : AiProvider {
     }
 
     private companion object {
-        val CHECKOUT_PATTERN = Regex("^(?:结账|买单|(微信|支付宝|现金|会员)结账)$")
+        /** 阿拉伯金额形态（长形态优先，防止 \d+ 提前截断「2块8」）。 */
+        val ARABIC_MONEY = "\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+"
+        /** 中文金额形态（语音键盘直出：两块八/两百/五毛）。 */
+        val CHINESE_MONEY = "[一两二三四五六七八九十百零半]+(?:块[一两二三四五六七八九半零]*|毛|元)?"
+        // 「结帐」为常见同音/异体误写，兼容之
+        val CHECKOUT_PATTERN = Regex("^(?:结账|结帐|买单|(微信|支付宝|现金|会员)(?:结账|结帐))$")
         /** 裸支付词结账（spec 17 路径 A：「微信。」）；无单场景由 Handler 明确提示。 */
         val BARE_PAYMENT_PATTERN = Regex("^(微信|支付宝|现金|会员)$")
         val QUANTITY_PATTERN =
             Regex("^(?:卖|来)(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
+        // 「近」是键盘语音对「进」的常见同音误识别（Task 059 真机验收）
         val PURCHASE_PATTERN =
-            Regex("^进(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
+            Regex("^[进近](\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
         /** 补单：老张上次那些螺丝再来两盒（商品名可省略，由客户记忆兜底） */
         val REORDER_PATTERN = Regex(
             "^(.+?)上次(?:那些|那个|的)?\\s*(.*?)再来" +
@@ -315,13 +377,13 @@ class LocalRuleParser : AiProvider {
         )
         /** 欠款：老张先记账（金额取草稿单） */
         val CREDIT_DRAFT_PATTERN = Regex("^(.+?)先记账$")
-        /** 欠款：老张赊200 / 老张赊账2块8 */
+        /** 欠款：老张赊200 / 老张赊账2块8 / 老张赊两百 */
         val CREDIT_AMOUNT_PATTERN = Regex(
-            "^(.+?)赊(?:账)?(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$"
+            "^(.+?)赊(?:账)?($ARABIC_MONEY|$CHINESE_MONEY)\\s*元?$"
         )
-        /** 收款：老张还100 */
+        /** 收款：老张还100 / 老张还一百 */
         val SETTLE_PATTERN = Regex(
-            "^(.+?)还(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$"
+            "^(.+?)还($ARABIC_MONEY|$CHINESE_MONEY)\\s*元?$"
         )
         /** 条码：8-14 位纯数字（EAN-13/Code128 常见长度） */
         val BARCODE_PATTERN = Regex("^\\d{8,14}$")
@@ -329,10 +391,9 @@ class LocalRuleParser : AiProvider {
         val REMOVE_LAST_PATTERN = Regex("^(?:刚才那个|刚那个)不要了$")
         /** 纠错句：不是X，是Y（spec 12 §6：先拿掉错的，再重说新的） */
         val CORRECTION_PATTERN = Regex("^不是.+?(?:，|,)?是.+$")
-        /** 改价：土豆改价三块五 / 土豆改成四十块 / 土豆改价3.5 */
+        /** 改价：土豆改价三块五 / 土豆改成四十块 / 土豆价格改为三块八（Task 059 语音兼容「改为」） */
         val CHANGE_PRICE_PATTERN = Regex(
-            "^(.+?)改(?:价|成)\\s*(([一两二三四五六七八九十]{1,3})块([一两二三四五六七八九十])?|" +
-                "[一两二三四五六七八九十]块[一两二三四五六七八九十]?|\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$"
+            "^(.+?)(?:的)?(?:价格)?改(?:价|成|为)\\s*($ARABIC_MONEY|$CHINESE_MONEY)\\s*元?$"
         )
         /** 会员余额：张姐还有多少钱 */
         val MEMBER_BALANCE_PATTERN = Regex("^(.+?)还有多少钱$")
@@ -356,17 +417,17 @@ class LocalRuleParser : AiProvider {
             "^(.+?)坏了(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*" +
                 "(斤|公斤|kg|克|个|盒|米)?$"
         )
-        /** 充值金额：长形态优先（块毛>元>小数>整数），防止 \d+ 提前截断「2块8」 */
+        /** 充值金额：长形态优先（块毛>元>小数>整数），防 \d+ 提前截断「2块8」；含中文金额 */
         val RECHARGE_PATTERN =
-            Regex("^给?(.+?)充(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$")
+            Regex("^给?(.+?)充($ARABIC_MONEY|$CHINESE_MONEY)\\s*元?$")
         /** 建商品（Task 057）：建[一个/个]商品[叫]X[，卖Y]；卖价可选 */
         val CREATE_PRODUCT_PATTERN = Regex(
             "^建(?:一个|个)?商品(?:叫)?(.+?)(?:，?\\s*卖\\s*(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+))?$"
         )
-        /** 成本/进价金额：长形态优先，防止 \d+ 提前截断「2块8」 */
-        val COST_PATTERN = Regex("(?:成本|进价)\\s*(\\d+块\\d?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)")
-        /** 逗号后裸进价（spec 17 路径 A：「进100斤土豆，2块8」）；仅块/元形态防误吞数量 */
-        val COMMA_COST_PATTERN = Regex("(?:，|,)\\s*(\\d+块\\d?毛?|\\d+(?:\\.\\d+)?元)")
+        /** 成本/进价金额。 */
+        val COST_PATTERN = Regex("(?:成本|进价)\\s*($ARABIC_MONEY|$CHINESE_MONEY)")
+        /** 逗号后裸进价（spec 17 路径 A：「进100斤土豆，2块8」「…，两块八」）。 */
+        val COMMA_COST_PATTERN = Regex("(?:，|,)\\s*($ARABIC_MONEY|$CHINESE_MONEY)")
         /** 句中附带售价改价要求（V1 单次只执行入库，改价引导单独说），长形态优先 */
         val SALE_PRICE_HINT_PATTERN = Regex("卖\\s*(\\d+块\\d?|\\d+(?:\\.\\d+)?|\\d+)")
         val CHINESE_NUMERALS = mapOf(

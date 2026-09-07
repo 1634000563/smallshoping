@@ -8,7 +8,10 @@ import java.time.LocalDate
 /**
  * 内存日结实现：线程安全；同一业务日只结一次（幂等）。
  */
-class InMemoryDayCloseRepository : DayCloseRepository {
+class InMemoryDayCloseRepository(
+    /** 写穿钩子（Task 059 SQLite 持久化）；null 时纯内存。 */
+    private val persist: com.smallshoping.app.data.sqlite.DayClosePersistence? = null
+) : DayCloseRepository {
 
     private val lock = Any()
     private val byDate = LinkedHashMap<LocalDate, DayClose>()
@@ -16,6 +19,7 @@ class InMemoryDayCloseRepository : DayCloseRepository {
     override fun close(dayClose: DayClose): CloseOutcome = synchronized(lock) {
         byDate[dayClose.businessDate]?.let { return CloseOutcome.AlreadyClosed(it) }
         byDate[dayClose.businessDate] = dayClose
+        persist?.onDayClose(dayClose)
         CloseOutcome.Closed(dayClose)
     }
 

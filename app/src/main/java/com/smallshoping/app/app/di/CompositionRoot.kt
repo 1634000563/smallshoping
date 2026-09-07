@@ -82,13 +82,20 @@ import com.smallshoping.app.domain.sales.RemoveSaleItemUseCase
  */
 class CompositionRoot(
     /** 云端模型 Provider（Task 044）：未配置密钥时为空，纯本地离线运行。 */
-    cloudProvider: AiProvider? = null
+    cloudProvider: AiProvider? = null,
+    /** 写穿持久化（Task 059 SQLite）：null = 纯内存（单元测试默认）；App 传入 ShopPersistence。 */
+    persistence: com.smallshoping.app.data.sqlite.ShopPersistence? = null
 ) {
 
-    val ledger = InMemoryLedger()
-    val products = InMemoryProductRepository()
-    val sales = InMemorySaleRepository(ledger)
-    val contexts: SessionContextStore = InMemorySessionContextStore()
+    val ledger = InMemoryLedger(
+        persistAppend = persistence?.let { p -> { e -> p.appendLedger(e) } },
+        persistWipe = persistence?.let { p -> { p.clearLedger() } }
+    )
+    val products = InMemoryProductRepository(persist = persistence)
+    val sales = InMemorySaleRepository(ledger, persist = persistence)
+    val contexts: SessionContextStore = InMemorySessionContextStore(
+        persist = persistence
+    )
 
     val session = StoreSession(storeId = "STORE-1", deviceId = "DEVICE-1")
 
@@ -106,31 +113,31 @@ class CompositionRoot(
     /** Domain UseCase 公开暴露：AI 与人工路径必须复用同一实例（Gate A）。 */
     val addSaleItemUseCase = AddSaleItemUseCase(sales, products)
     val removeSaleItemUseCase = RemoveSaleItemUseCase(sales)
-    val purchases = InMemoryPurchaseRepository(ledger, products)
+    val purchases = InMemoryPurchaseRepository(ledger, products, persist = persistence)
     val purchaseInUseCase = PurchaseInUseCase(purchases, products, StockQuery(ledger))
 
-    val losses = InMemoryLossRepository(ledger)
+    val losses = InMemoryLossRepository(ledger, persist = persistence)
     val recordLossUseCase = RecordLossUseCase(losses, products, StockQuery(ledger))
     val adjustStockUseCase = AdjustStockUseCase(ledger, products, StockQuery(ledger))
 
-    val members = InMemoryMemberRepository()
+    val members = InMemoryMemberRepository(persist = persistence)
     val rechargeMemberUseCase = RechargeMemberUseCase(members, ledger)
     val memberFundsQuery = MemberFundsQuery(members, ledger)
 
     /** 支付记录（Task 047）：结账写支付记录，会员余额消费同批落账。 */
-    val payments = InMemoryPaymentRepository()
+    val payments = InMemoryPaymentRepository(persist = persistence)
     val checkoutSaleUseCase = CheckoutSaleUseCase(sales, ledger, members, payments)
     val confirmPaymentUseCase = ConfirmPaymentUseCase(payments)
 
     /** 日结/经营核对（Task 048）：快照不修改历史销售。 */
-    val dayCloses = InMemoryDayCloseRepository()
+    val dayCloses = InMemoryDayCloseRepository(persist = persistence)
     val dayCloseService = DayCloseService(sales, payments, dayCloses, ledger)
 
     /** CSV 导入导出/旧系统迁移（Task 049）。 */
     val csvExporter = CsvExporter(products, sales, payments, ledger)
     val csvImporter = CsvImporter(products, ledger)
 
-    val customers = InMemoryCustomerRepository()
+    val customers = InMemoryCustomerRepository(persist = persistence)
     val recordCustomerCreditUseCase = RecordCustomerCreditUseCase(customers, ledger)
     val receiveCustomerPaymentUseCase = ReceiveCustomerPaymentUseCase(customers, ledger)
     val customerDebtQuery = CustomerDebtQuery(customers, ledger)
@@ -139,11 +146,11 @@ class CompositionRoot(
     private val customerResolver = CustomerResolver(customers)
 
     /** 店铺长期记忆（spec 06）：只存偏好/别名/规则/引用，不复制账务事实。 */
-    val memory = InMemoryMemoryStore()
+    val memory = InMemoryMemoryStore(persist = persistence)
     private val memoryWritePolicy = MemoryWritePolicy(memory)
 
     /** 命令日志与重放（Task 045 崩溃恢复）。 */
-    val commandJournal = InMemoryCommandJournal()
+    val commandJournal = InMemoryCommandJournal(persist = persistence)
     val replayRunner: ReplayRunner by lazy { ReplayRunner(commandJournal, executor) }
     val crashRecovery = com.smallshoping.app.domain.journal.CrashRecoveryService(ledger)
 
@@ -188,7 +195,7 @@ class CompositionRoot(
                 session
             ),
             ToolRef("get_today_sales") to GetTodaySalesHandler(todaySalesSummary),
-            ToolRef("purchase_in") to PurchaseInHandler(resolver, purchaseInUseCase, session),
+            ToolRef("purchase_in") to PurchaseInHandler(resolver, products, purchaseInUseCase, session),
             ToolRef("find_member") to FindMemberHandler(memberResolver),
             ToolRef("get_member_balance") to GetMemberBalanceHandler(memberResolver, memberFundsQuery),
             ToolRef("recharge_member") to RechargeMemberHandler(
@@ -233,4 +240,26 @@ class CompositionRoot(
     )
 
     val inputAdapter = InputAdapter(session = session, allowedTools = allowedTools)
+
+    init {
+        // Task 059 SQLite 水合：持久化模式下构造完成即从 SQLite 恢复全部事实
+        // （恢复走仓库公开 API，幂等落盘无副作用；内存仍是运行时主存）
+        persistence?.let { p ->
+            com.smallshoping.app.data.sqlite.Hydrator.load(
+                db = p.database,
+                ledger = ledger,
+                products = products,
+                sales = sales,
+                purchases = purchases,
+                losses = losses,
+                payments = payments,
+                members = members,
+                customers = customers,
+                dayCloses = dayCloses,
+                journal = commandJournal,
+                contexts = contexts,
+                memory = memory
+            )
+        }
+    }
 }

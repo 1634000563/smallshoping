@@ -6,7 +6,10 @@ import com.smallshoping.app.ai.context.SessionContextStore
 /**
  * 内存会话上下文实现：线程安全，自动过滤过期会话。
  */
-class InMemorySessionContextStore : SessionContextStore {
+class InMemorySessionContextStore(
+    /** 写穿钩子（Task 059 SQLite 持久化）；null 时纯内存。 */
+    private val persist: com.smallshoping.app.data.sqlite.ContextPersistence? = null
+) : SessionContextStore {
 
     private val lock = Any()
     private val bySession = LinkedHashMap<String, SessionContext>()
@@ -18,12 +21,14 @@ class InMemorySessionContextStore : SessionContextStore {
     override fun save(context: SessionContext) {
         synchronized(lock) {
             bySession[context.deviceSessionId] = context
+            persist?.onSave(context)
         }
     }
 
     override fun clear(deviceSessionId: String) {
         synchronized(lock) {
             bySession.remove(deviceSessionId)
+            persist?.onClear(deviceSessionId)
         }
     }
 

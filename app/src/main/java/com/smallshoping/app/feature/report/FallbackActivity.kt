@@ -19,7 +19,8 @@ import com.smallshoping.app.app.di.CompositionRoot
  */
 class FallbackActivity : Activity() {
 
-    private val root = CompositionRoot()
+    /** 全进程共享组合根：查账页读到主界面同一份账务事实（Task 059 修复）。 */
+    private val root = com.smallshoping.app.app.App.root
     private val viewModel = FallbackViewModel(root)
     private lateinit var resultText: TextView
     private lateinit var queryInput: EditText

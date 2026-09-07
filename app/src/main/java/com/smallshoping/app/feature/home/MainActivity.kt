@@ -6,8 +6,11 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -19,35 +22,39 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.smallshoping.app.app.di.CompositionRoot
 import com.smallshoping.app.device.scanner.BarcodeScanner
 import com.smallshoping.app.device.scanner.MlKitBarcodeScanner
 import com.smallshoping.app.device.scanner.ScanResult
 
 /**
- * 极简主界面（Task 041/042，Task 059 微信式输入重构）：
- * 聊天窗口布局——回复区 + 底部输入栏（点输入框弹系统键盘）。
+ * 极简主界面（Task 041/042，Task 059 微信式重构）：
+ * 上方整块聊天窗口（消息气泡累积，老板的话在右、AI 回复在左），
+ * 底部微信式输入栏——点输入框键盘弹起、输入栏紧贴键盘上沿；
+ * 无内容显示「＋」（展开扫/手动加/人工结账/查账面板），有内容显示「发送」；
+ * 确认卡片嵌入聊天流（黄色气泡 + 卡片内确认/取消）。
  *
- * - 无传统菜单（Route Guard）；老板只会看到：回复区、当前任务、
- *   底部输入栏（扫+输入框+发送）、确认/取消、人工兜底按钮；
- * - 所有输入汇入 [HomeViewModel.handleInput]（唯一链路 UI→AI→Tool→Domain）；
- * - 确认卡片：CONFIRM 状态黄色卡片提示；异常 ERROR 红色提示（AI 挂不影响营业）；
+ * - 无传统菜单（Route Guard）；所有输入汇入 [HomeViewModel.handleInput]
+ *   （唯一链路 UI→AI→Tool→Domain）；
  * - 人工接管：AI 不可用时「手动加」「人工结账」直接走 Domain（Gate A 同一事实）；
- * - 语音输入由系统键盘提供（ADR-017）：点输入框弹出的键盘自带语音键
- *   （小米/搜狗/讯飞等输入法，方言效果好），应用不内置 ASR、不申请麦克风权限；
- * - 扫码失败自动降级提示用键盘输入（离线宪法 #6）；
- * - 基类为 ComponentActivity：相机绑定需要 LifecycleOwner（Task 052）。
+ * - 语音输入由系统键盘提供（ADR-017）：键盘自带语音键，应用不内置 ASR；
+ * - 扫码失败自动降级提示用键盘输入（离线宪法 #6）。
  */
 class MainActivity : ComponentActivity() {
 
-    private val root = CompositionRoot()
+    /** 全进程共享组合根（App 创建）：主界面与查账页同一份账务事实。 */
+    private val root = com.smallshoping.app.app.App.root
     private lateinit var viewModel: HomeViewModel
-    private lateinit var replyText: TextView
     private lateinit var taskText: TextView
-    private lateinit var input: EditText
-    private lateinit var confirmButton: Button
-    private lateinit var cancelButton: Button
+    private lateinit var chatContainer: LinearLayout
     private lateinit var confirmRow: LinearLayout
+    private lateinit var scroll: ScrollView
+    private lateinit var input: EditText
+    private lateinit var sendButton: Button
+    private lateinit var plusButton: Button
+    private lateinit var plusPanel: LinearLayout
     private lateinit var previewView: PreviewView
     private var barcodeScanner: BarcodeScanner? = null
 
@@ -84,50 +91,56 @@ class MainActivity : ComponentActivity() {
         val rootLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.WHITE)
+            // 键盘弹起时输入栏紧贴键盘上沿（WindowInsets 方案，全设备可靠）
+            ViewCompat.setOnApplyWindowInsetsListener(this) { v, insets ->
+                val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+                v.setPadding(0, 0, 0, ime.bottom)
+                insets
+            }
         }
 
-        // 当前任务区
+        // ── 聊天窗口（占满上方全部空间，消息气泡累积）──
         taskText = TextView(this).apply {
-            textSize = 14f
-            setTextColor(Color.DKGRAY)
-            setPadding(32, 16, 32, 8)
+            textSize = 13f
+            setTextColor(Color.GRAY)
+            setPadding(32, 12, 32, 4)
             text = "当前没有待结账的单子"
         }
-        rootLayout.addView(taskText, matchWidth())
-
-        // 回复区（聊天内容，可滚动，占满剩余空间）
-        replyText = TextView(this).apply {
-            textSize = 20f
-            setTextColor(Color.BLACK)
-            typeface = Typeface.DEFAULT_BOLD
-            setPadding(32, 16, 32, 16)
-            text = "说什么：卖两斤土豆 / 进100斤土豆成本2块8 / 结账 / 今天卖了多少钱"
+        chatContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(taskText, matchWidth())
         }
-        val scroll = ScrollView(this).apply {
-            addView(replyText, matchWidth())
+        // 确认卡片（嵌入聊天流，待确认时显示在回复气泡下方）
+        confirmRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            visibility = android.view.View.GONE
+        }
+        confirmRow.addView(
+            Button(this).apply {
+                text = "确认"
+                setOnClickListener { render(viewModel.confirm(approved = true)) }
+            },
+            wrap()
+        )
+        confirmRow.addView(
+            Button(this).apply {
+                text = "取消"
+                setOnClickListener { render(viewModel.confirm(approved = false)) }
+            },
+            wrap()
+        )
+        chatContainer.addView(confirmRow, matchWidth())
+        scroll = ScrollView(this).apply {
+            addView(chatContainer, matchWidth())
             isFillViewport = true
         }
         rootLayout.addView(scroll, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
 
-        // 确认卡片行（仅待确认时显示，Task 042）
-        confirmRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            visibility = android.view.View.GONE
-        }
-        confirmButton = Button(this).apply {
-            text = "确认"
-            setOnClickListener { render(viewModel.confirm(approved = true)) }
-        }
-        cancelButton = Button(this).apply {
-            text = "取消"
-            setOnClickListener { render(viewModel.confirm(approved = false)) }
-        }
-        confirmRow.addView(confirmButton, wrap())
-        confirmRow.addView(cancelButton, wrap())
-        rootLayout.addView(confirmRow, matchWidth())
+        // 欢迎语（左侧气泡）
+        appendBubble("说什么：卖两斤土豆 / 进100斤土豆成本2块8 / 结账 / 今天卖了多少钱", mine = false, kind = UiKind.NORMAL)
 
         // 扫码取景框（扫码时临时显示，Task 052）
         previewView = PreviewView(this).apply { visibility = android.view.View.GONE }
@@ -135,91 +148,155 @@ class MainActivity : ComponentActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT, 320
         ))
 
-        // 人工接管行：AI 不可用时的兜底（同一 Domain，Gate A）
-        val manualRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(16, 0, 16, 0)
+        // ── ＋功能面板（点「＋」展开/收起，所有功能按钮集中在此）──
+        plusPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = android.view.View.GONE
+            setPadding(16, 8, 16, 8)
+            setBackgroundColor(Color.rgb(247, 247, 247))
         }
-        manualRow.addView(
-            Button(this).apply {
-                text = "手动加（如：土豆 2斤）"
-                setOnClickListener {
-                    val raw = input.text.toString().trim()
-                    val parts = raw.split(Regex("\\s+"), limit = 2)
-                    val state = if (parts.size == 2) {
-                        viewModel.manualAddItem(parts[0], parts[1])
-                    } else {
-                        HomeUiState(UiKind.ERROR, "手动加格式：商品名 数量（如 土豆 2斤）")
-                    }
-                    render(state)
-                    input.text.clear()
-                }
-            },
-            wrap()
-        )
-        manualRow.addView(
-            Button(this).apply {
-                text = "人工结账"
-                setOnClickListener { render(viewModel.manualCheckout()) }
-            },
-            wrap()
-        )
-        manualRow.addView(
-            Button(this).apply {
-                text = "查账"
-                setOnClickListener {
-                    startActivity(
-                        android.content.Intent(this@MainActivity, com.smallshoping.app.feature.report.FallbackActivity::class.java)
-                    )
-                }
-            },
-            wrap()
-        )
-        rootLayout.addView(manualRow, matchWidth())
+        val plusRow1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        plusRow1.addView(panelButton("扫") { startScan() }, panelWeight())
+        plusRow1.addView(panelButton("手动加（如：土豆 2斤）") {
+            val raw = input.text.toString().trim()
+            val parts = raw.split(Regex("\\s+"), limit = 2)
+            if (parts.size == 2) {
+                appendBubble(raw, mine = true, kind = UiKind.NORMAL)
+                render(viewModel.manualAddItem(parts[0], parts[1]))
+            } else {
+                render(HomeUiState(UiKind.ERROR, "手动加格式：商品名 数量（如 土豆 2斤）"))
+            }
+            input.text.clear()
+        }, panelWeight())
+        val plusRow2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        plusRow2.addView(panelButton("人工结账") {
+            appendBubble("人工结账", mine = true, kind = UiKind.NORMAL)
+            render(viewModel.manualCheckout())
+        }, panelWeight())
+        plusRow2.addView(panelButton("查账") {
+            startActivity(
+                android.content.Intent(this@MainActivity, com.smallshoping.app.feature.report.FallbackActivity::class.java)
+            )
+        }, panelWeight())
+        plusPanel.addView(plusRow1, matchWidth())
+        plusPanel.addView(plusRow2, matchWidth())
+        rootLayout.addView(plusPanel, matchWidth())
 
-        // 底部输入栏（微信式，Task 059）：[扫] [输入框（点按弹键盘，键盘自带语音）] [发送]
+        // ── 底部输入栏（微信式）：[输入框][发送/＋]；键盘弹起输入栏紧贴键盘 ──
         val inputBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(16, 12, 16, 20)
+            setPadding(16, 12, 16, 16)
         }
-        inputBar.addView(
-            Button(this).apply {
-                text = "扫"
-                setOnClickListener { startScan() }
-            },
-            wrap()
-        )
         input = EditText(this).apply {
             hint = "打字说，或按住键盘的语音键说（条码直接输入数字）"
             textSize = 16f
             maxLines = 3
             setPadding(40, 20, 40, 20)
-            // 微信式圆角灰底输入框
             background = GradientDrawable().apply {
                 cornerRadius = 56f
                 setColor(Color.rgb(245, 245, 245))
             }
+            setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) plusPanel.visibility = android.view.View.GONE
+            }
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                override fun afterTextChanged(s: Editable?) {
+                    updateSendPlusVisibility()
+                }
+            })
         }
         inputBar.addView(input, LinearLayout.LayoutParams(0, wrapHeight(), 1f).apply {
             marginStart = 16
             marginEnd = 16
         })
-        inputBar.addView(
-            Button(this).apply {
-                text = "发送"
-                setBackgroundColor(Color.rgb(7, 193, 96)) // 微信绿
-                setTextColor(Color.WHITE)
-                setOnClickListener {
-                    render(viewModel.handleInput(input.text.toString()))
-                    input.text.clear()
+        // 微信式：输入框有内容显示「发送」，无内容显示「＋」（同位置互换）
+        sendButton = Button(this).apply {
+            text = "发送"
+            setBackgroundColor(Color.rgb(7, 193, 96)) // 微信绿
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                val text = input.text.toString()
+                if (text.isBlank()) return@setOnClickListener
+                appendBubble(text, mine = true, kind = UiKind.NORMAL)
+                render(viewModel.handleInput(text))
+                input.text.clear()
+            }
+        }
+        plusButton = Button(this).apply {
+            text = "＋"
+            textSize = 22f
+            setOnClickListener {
+                // 展开面板时收起键盘，让按钮完整可见
+                input.clearFocus()
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.hideSoftInputFromWindow(input.windowToken, 0)
+                plusPanel.visibility = if (plusPanel.visibility == android.view.View.VISIBLE) {
+                    android.view.View.GONE
+                } else {
+                    android.view.View.VISIBLE
                 }
-            },
-            wrap()
-        )
+            }
+        }
+        inputBar.addView(sendButton, wrap())
+        inputBar.addView(plusButton, wrap())
         rootLayout.addView(inputBar, matchWidth())
+        updateSendPlusVisibility()
         return rootLayout
+    }
+
+    /** 微信式按钮互换：有内容 → 发送；无内容 → ＋。 */
+    private fun updateSendPlusVisibility() {
+        val hasText = input.text.isNotEmpty()
+        sendButton.visibility = if (hasText) android.view.View.VISIBLE else android.view.View.GONE
+        plusButton.visibility = if (hasText) android.view.View.GONE else android.view.View.VISIBLE
+    }
+
+    /** ＋面板按钮：大按钮、微信风灰底。 */
+    private fun panelButton(text: String, onClick: () -> Unit): Button =
+        Button(this).apply {
+            this.text = text
+            textSize = 16f
+            setBackgroundColor(Color.rgb(230, 230, 230))
+            setOnClickListener { onClick() }
+        }
+
+    private fun panelWeight() = LinearLayout.LayoutParams(0, 160, 1f).apply {
+        marginStart = 8
+        marginEnd = 8
+    }
+
+    /** 追加一条聊天气泡：老板的话右侧绿，回复左侧（确认黄、异常红字）。 */
+    private fun appendBubble(text: String, mine: Boolean, kind: UiKind) {
+        if (text.isBlank()) return
+        val bubble = TextView(this).apply {
+            this.text = text
+            textSize = 18f
+            setPadding(36, 24, 36, 24)
+            background = GradientDrawable().apply {
+                cornerRadius = 28f
+                when {
+                    mine -> setColor(Color.rgb(149, 236, 105)) // 微信绿气泡
+                    kind == UiKind.CONFIRM -> setColor(Color.rgb(255, 244, 150)) // 确认黄卡片
+                    else -> setColor(Color.rgb(245, 245, 245)) // 灰回复
+                }
+            }
+            setTextColor(if (!mine && kind == UiKind.ERROR) Color.RED else Color.BLACK)
+            if (mine) typeface = Typeface.DEFAULT else typeface = Typeface.DEFAULT_BOLD
+        }
+        // 确认卡片上方是待确认问题气泡，确认/取消行保持聊天流最底部
+        chatContainer.addView(
+            bubble,
+            matchWidth().apply {
+                gravity = if (mine) Gravity.END else Gravity.START
+                marginStart = if (mine) 96 else 24
+                marginEnd = if (mine) 24 else 96
+                topMargin = 10
+            }
+        )
+        scroll.post { scroll.fullScroll(android.view.View.FOCUS_DOWN) }
     }
 
     private fun startScan() {
@@ -239,7 +316,10 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 previewView.visibility = android.view.View.GONE
                 when (result) {
-                    is ScanResult.Scanned -> render(viewModel.handleInput(result.barcode))
+                    is ScanResult.Scanned -> {
+                        appendBubble("扫到了 ${result.barcode}", mine = true, kind = UiKind.NORMAL)
+                        render(viewModel.handleInput(result.barcode))
+                    }
                     is ScanResult.NoMatch -> render(HomeUiState(UiKind.QUESTION, result.message))
                     is ScanResult.Error -> render(
                         HomeUiState(UiKind.ERROR, "${result.message}（可用键盘输入条码）")
@@ -250,29 +330,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun render(state: HomeUiState) {
-        replyText.text = state.reply
         taskText.text = state.currentTask
         val pending = state.pendingConfirmId != null
+        // 确认/取消行保持聊天流最底部（在气泡之后）
+        if (confirmRow.parent != null) chatContainer.removeView(confirmRow)
+        chatContainer.addView(confirmRow, matchWidth())
         confirmRow.visibility = if (pending) android.view.View.VISIBLE else android.view.View.GONE
-        when (state.kind) {
-            // 确认卡片：黄色背景强调
-            UiKind.CONFIRM -> {
-                replyText.setBackgroundColor(Color.YELLOW)
-                replyText.setTextColor(Color.BLACK)
-            }
-
-            // 异常：红色提示（AI 不可用/业务失败，不阻塞营业）
-            UiKind.ERROR -> {
-                replyText.setBackgroundColor(Color.WHITE)
-                replyText.setTextColor(Color.RED)
-            }
-
-            // 追问/普通：常规样式
-            else -> {
-                replyText.setBackgroundColor(Color.WHITE)
-                replyText.setTextColor(Color.BLACK)
-            }
-        }
+        appendBubble(state.reply, mine = false, kind = state.kind)
         if (pending) {
             Toast.makeText(this, "请按「确认」执行或「取消」", Toast.LENGTH_SHORT).show()
         }

@@ -10,13 +10,17 @@ import com.smallshoping.app.domain.member.MemberRepository
  * 语义基线同 [com.smallshoping.app.data.ledger.InMemoryLedger]：
  * 真实持久化实现（Room/SQLite）须通过同一组测试。
  */
-class InMemoryMemberRepository : MemberRepository {
+class InMemoryMemberRepository(
+    /** 写穿钩子（Task 059 SQLite 持久化）；null 时纯内存。 */
+    private val persist: com.smallshoping.app.data.sqlite.MemberPersistence? = null
+) : MemberRepository {
 
     private val lock = Any()
     private val byId = LinkedHashMap<String, Member>()
     private val byName = HashMap<String, Member>()
 
     override fun saveMember(member: Member) = synchronized(lock) {
+        persist?.onMember(member)
         byId[member.id] = member
         byName[member.normalizedName] = member
     }

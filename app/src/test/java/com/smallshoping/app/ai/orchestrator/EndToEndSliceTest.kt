@@ -118,6 +118,22 @@ class EndToEndSliceTest {
     }
 
     @Test
+    fun `进货商品不存在：顺手建档再入库，不反问（ADR-018 真机反馈）`() {
+        val root = CompositionRoot() // 不预置任何商品
+        val reply = root.orchestrator.handle(root.inputAdapter.fromText("进100斤土豆，成本2块8"))
+        val text = (reply as OrchestratorReply.Text).text
+        assertTrue("应说明已建商品：$text", text.contains("刚建了商品"))
+        assertTrue(text.contains("已入库"))
+        // 账务事实：商品建档（斤单位、售价 0、成本 2.8）、库存 100 斤
+        val p = root.products.findByNormalizedName(normalize("土豆"))!!
+        assertEquals(com.smallshoping.app.core.quantity.Unit.JIN, p.saleUnit)
+        assertEquals(Money(0), p.currentSalePrice)
+        assertEquals(Money(280), p.currentCostPrice)
+        assertEquals(50000L, com.smallshoping.app.domain.inventory.StockQuery(root.ledger).stockOf(p.id))
+        assertTrue(root.consistencyAudit.audit().healthy)
+    }
+
+    @Test
     fun `黄金语句：进100斤土豆，成本2块8 → 入库与成本更新`() {
         seedPotato()
         val reply = root.orchestrator.handle(

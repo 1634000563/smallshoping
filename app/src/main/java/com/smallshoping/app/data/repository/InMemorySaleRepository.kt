@@ -11,7 +11,11 @@ import com.smallshoping.app.domain.sales.SaleStatus
  * 内存销售单实现：completeSale 为事务边界（单锁内完成销售落库 + 库存流水），
  * Room/SQLite 实现必须用 withTransaction 保持同一语义。
  */
-class InMemorySaleRepository(private val ledger: Ledger) : SaleRepository {
+class InMemorySaleRepository(
+    private val ledger: Ledger,
+    /** 写穿钩子（Task 059 SQLite 持久化）；null 时纯内存。 */
+    private val persist: com.smallshoping.app.data.sqlite.SalePersistence? = null
+) : SaleRepository {
 
     private val lock = Any()
     private val orders = LinkedHashMap<String, SaleOrder>()
@@ -20,6 +24,15 @@ class InMemorySaleRepository(private val ledger: Ledger) : SaleRepository {
     override fun saveDraft(order: SaleOrder) {
         synchronized(lock) {
             orders[order.id] = order
+            persist?.onSale(order)
+        }
+    }
+
+    /** 启动水合：恢复已完成销售单（流水已在账本表恢复，此处不重复记库存流水）。 */
+    fun restore(order: SaleOrder) {
+        synchronized(lock) {
+            orders[order.id] = order
+            order.checkoutIdempotencyKey?.let { byCheckoutKey[it] = order }
         }
     }
 
@@ -58,15 +71,18 @@ class InMemorySaleRepository(private val ledger: Ledger) : SaleRepository {
             if (conflicts.isNotEmpty()) return CheckoutOutcome.StockConflict(conflicts)
         }
         // 同事务写入：先销售单后库存流水；任一步异常由调用方整体失败
-        orders[sale.id] = sale.copy(status = SaleStatus.COMPLETED)
+        val completed = sale.copy(status = SaleStatus.COMPLETED)
+        orders[sale.id] = completed
         ledger.transact(stockEntries)
         key?.let { byCheckoutKey[it] = sale }
-        CheckoutOutcome.Completed(sale)
+        persist?.onSale(completed)
+        CheckoutOutcome.Completed(completed)
     }
 
     /** 数据擦除（spec 13 §5，仅 DataWipeService 调用）。 */
     fun wipe() = synchronized(lock) {
         orders.clear()
         byCheckoutKey.clear()
+        persist?.onSaleWipe()
     }
 }

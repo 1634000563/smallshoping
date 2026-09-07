@@ -14,7 +14,9 @@ import com.smallshoping.app.domain.purchase.PurchaseRepository
  */
 class InMemoryPurchaseRepository(
     private val ledger: Ledger,
-    private val products: ProductRepository
+    private val products: ProductRepository,
+    /** 写穿钩子（Task 059 SQLite 持久化）；null 时纯内存。 */
+    private val persist: com.smallshoping.app.data.sqlite.PurchasePersistence? = null
 ) : PurchaseRepository {
 
     private val lock = Any()
@@ -39,6 +41,15 @@ class InMemoryPurchaseRepository(
         ledger.append(stockEntry)
         updatedProduct?.let { products.saveProduct(it) }
         byIdempotencyKey[order.idempotencyKey] = order
+        persist?.onPurchase(order)
         PurchaseOutcome.Completed(order)
+    }
+
+    /** 启动水合：恢复采购单（流水已在账本表恢复，此处不重复记库存流水）。 */
+    fun restore(order: PurchaseOrder) {
+        synchronized(lock) {
+            orders[order.id] = order
+            byIdempotencyKey[order.idempotencyKey] = order
+        }
     }
 }

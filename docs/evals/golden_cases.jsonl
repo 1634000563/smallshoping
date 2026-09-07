@@ -28,3 +28,8 @@
 {"id": "veg-013", "utterance": "进100斤土豆，2块8", "expected_intent": "PURCHASE_IN", "expected_tool": "purchase_in", "risk": "LOW", "clarification": false}
 {"id": "prod-001", "utterance": "建商品螺丝，卖5块", "expected_intent": "CREATE_PRODUCT", "expected_tool": "create_product", "risk": "MEDIUM", "clarification": false}
 {"id": "ux-001", "utterance": "不是土豆，是红薯", "expected_intent": "REMOVE_SALE_ITEM", "expected_tool": "remove_sale_item", "risk": "MEDIUM", "clarification": false}
+{"id": "veg-014", "utterance": "近100斤土豆，成本2块8", "expected_intent": "PURCHASE_IN", "expected_tool": "purchase_in", "risk": "LOW", "clarification": false}
+{"id": "ux-002", "utterance": "进100斤土豆成本两块八。", "expected_intent": "PURCHASE_IN", "expected_tool": "purchase_in", "risk": "LOW", "clarification": false}
+{"id": "ux-003", "utterance": "土豆价格改为三块八。", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
+{"id": "ux-004", "utterance": "给张姐充两百", "expected_intent": "RECHARGE_MEMBER", "expected_tool": "recharge_member", "risk": "MEDIUM", "clarification": false}
+{"id": "ux-005", "utterance": "我想卖两斤土豆", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}

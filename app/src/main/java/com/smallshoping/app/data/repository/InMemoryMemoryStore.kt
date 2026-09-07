@@ -10,7 +10,10 @@ import com.smallshoping.app.domain.memory.MemoryStore
  * 语义基线同 [com.smallshoping.app.data.ledger.InMemoryLedger]：
  * 真实持久化实现（Room/SQLite）须通过同一组测试。
  */
-class InMemoryMemoryStore : MemoryStore {
+class InMemoryMemoryStore(
+    /** 写穿钩子（Task 059 SQLite 持久化）；null 时纯内存。 */
+    private val persist: com.smallshoping.app.data.sqlite.MemoryPersistence? = null
+) : MemoryStore {
 
     private val lock = Any()
 
@@ -40,6 +43,7 @@ class InMemoryMemoryStore : MemoryStore {
         }
         byKey[k] = stored
         byId[stored.id] = stored
+        persist?.onUpsert(stored)
         stored
     }
 
@@ -73,6 +77,7 @@ class InMemoryMemoryStore : MemoryStore {
         val updated = fact.copy(active = false, updatedAtMillis = System.currentTimeMillis())
         byId[id] = updated
         byKey[MemoryKey(updated.scopeType, updated.scopeId, updated.factType, updated.key)] = updated
+        persist?.onUpsert(updated)
         true
     }
 

@@ -20,7 +20,11 @@ import com.smallshoping.app.domain.ledger.LedgerScope
  * [balance] 返回缓存值，[rebuildBalance] 从流水重算并核对，
  * 不一致抛 [DataIntegrityException]（spec 04 §13，不静默覆盖）。
  */
-class InMemoryLedger : Ledger {
+class InMemoryLedger(
+    /** 写穿钩子（Task 059 SQLite 持久化）：追加成功后同步落盘；null 时纯内存。 */
+    private val persistAppend: ((LedgerEntry) -> Unit)? = null,
+    private val persistWipe: (() -> Unit)? = null
+) : Ledger {
 
     private val lock = Any()
     private val entriesByScope = LinkedHashMap<LedgerScope, MutableList<LedgerEntry>>()
@@ -37,6 +41,7 @@ class InMemoryLedger : Ledger {
         entriesByScope.getOrPut(entry.scope) { ArrayList() }.add(entry)
         cachedBalances[entry.scope] =
             Math.addExact(cachedBalances.getOrDefault(entry.scope, 0L), entry.delta)
+        persistAppend?.invoke(entry)
         AppendResult.Appended(entry)
     }
 
@@ -86,5 +91,7 @@ class InMemoryLedger : Ledger {
         entriesByScope.clear()
         keysByScope.clear()
         cachedBalances.clear()
+        persistWipe?.invoke()
+        Unit
     }
 }
