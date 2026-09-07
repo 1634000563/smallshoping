@@ -12,4 +12,8 @@ class StockQuery(private val ledger: Ledger) {
 
     fun stockOf(productId: String): Long =
         ledger.balance(LedgerScope(LedgerScopeType.STOCK, productId))
+
+    /** 从流水重建库存并核对缓存（spec 04 §13 rebuildInventorySnapshot）；不一致抛异常，不静默覆盖。 */
+    fun rebuildStock(productId: String): Long =
+        ledger.rebuildBalance(LedgerScope(LedgerScopeType.STOCK, productId))
 }

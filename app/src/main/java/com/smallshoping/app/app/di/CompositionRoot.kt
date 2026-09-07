@@ -147,6 +147,9 @@ class CompositionRoot(
     val replayRunner: ReplayRunner by lazy { ReplayRunner(commandJournal, executor) }
     val crashRecovery = com.smallshoping.app.domain.journal.CrashRecoveryService(ledger)
 
+    /** 全店一致性审计（Task 055，spec 04 §13 维护能力）：差异明细 + 不静默覆盖。 */
+    val consistencyAudit = com.smallshoping.app.domain.audit.StoreConsistencyAudit(ledger)
+
     /** 备份/恢复（Task 046）：账务事实+目录+命令日志快照，恢复前校验 checksum 与版本。 */
     val backupService = BackupService(
         ledger = ledger,
