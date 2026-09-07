@@ -44,4 +44,35 @@ class EvalRunnerTest {
         assertTrue(!bad.pass)
         assertTrue(bad.failures.any { it.detail.contains(EvalRunner.DANGEROUS) })
     }
+
+    @Test
+    fun `期望澄清：Clarification 响应通过，解析为自动执行 LOW 工具一票否决（Task 054）`() {
+        val clarifyProvider = object : com.smallshoping.app.ai.providers.AiProvider {
+            override fun complete(request: com.smallshoping.app.ai.providers.GatewayRequest) =
+                com.smallshoping.app.ai.providers.AiResponse.Clarification("没听懂")
+        }
+        val clarified = EvalRunner(clarifyProvider).run(
+            listOf(
+                GoldenCase(
+                    "c1", "给张姐充200", "recharge_member", "MEDIUM",
+                    expectedClarification = true
+                )
+            ),
+            allowedTools
+        )
+        assertTrue(clarified.pass)
+
+        // 期望澄清却被解析为 LOW 自动执行工具 → 漏澄清，一票否决
+        val missing = runner.run(
+            listOf(
+                GoldenCase(
+                    "c2", "卖两斤土豆", "add_sale_item", "LOW",
+                    expectedClarification = true
+                )
+            ),
+            allowedTools
+        )
+        assertTrue(!missing.pass)
+        assertTrue(missing.failures.any { it.detail.contains(EvalRunner.MISSING_CLARIFICATION) })
+    }
 }

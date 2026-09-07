@@ -52,3 +52,11 @@ dependencies {
     implementation("androidx.camera:camera-view:1.4.1")
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
 }
+
+// Task 054 发布门禁：一条命令跑全部关键自动化验证
+// （全量单测含 Golden Eval / Architecture Guard / 各 Gate 验收 + 构建 APK）
+tasks.register("releaseGate") {
+    group = "verification"
+    description = "V1 发布门禁：全量单测（含黄金语句集回归与架构守卫生）+ 构建 APK"
+    dependsOn("testDebugUnitTest", "assembleDebug")
+}
