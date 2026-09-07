@@ -96,6 +96,11 @@ class LocalRuleParser : AiProvider {
         REMOVE_LAST_PATTERN.find(text)?.let {
             return AiResponse.ToolCall("remove_sale_item", emptyMap())
         }
+        // 不是土豆，是红薯（Task 058，spec 12 §6 纠错）：先把错的拿掉，
+        // 不创建错误交易；新商品老板再说一遍（两步纠错，最小诚实实现）
+        CORRECTION_PATTERN.find(text)?.let {
+            return AiResponse.ToolCall("remove_sale_item", emptyMap())
+        }
         // 土豆改价三块五 / 土豆改成四十块（Task 038：改价）
         CHANGE_PRICE_PATTERN.find(text)?.let { m ->
             val product = m.groupValues[1].trim()
@@ -322,6 +327,8 @@ class LocalRuleParser : AiProvider {
         val BARCODE_PATTERN = Regex("^\\d{8,14}$")
         /** 移除最近商品：刚才那个不要了 */
         val REMOVE_LAST_PATTERN = Regex("^(?:刚才那个|刚那个)不要了$")
+        /** 纠错句：不是X，是Y（spec 12 §6：先拿掉错的，再重说新的） */
+        val CORRECTION_PATTERN = Regex("^不是.+?(?:，|,)?是.+$")
         /** 改价：土豆改价三块五 / 土豆改成四十块 / 土豆改价3.5 */
         val CHANGE_PRICE_PATTERN = Regex(
             "^(.+?)改(?:价|成)\\s*(([一两二三四五六七八九十]{1,3})块([一两二三四五六七八九十])?|" +
