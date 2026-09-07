@@ -347,12 +347,28 @@ class LocalRuleParser : AiProvider {
                 mapOf("product" to product, "price" to fen.toString())
             )
         }
+        // 土豆售价四块 / 土豆四块钱（Task 059：无动词改价，置于所有动作句式之后防误吞）
+        PRICE_NO_VERB_PATTERN.find(text)
+            ?.takeIf { m -> m.groupValues[1].any { it in '一'..'龥' } } // 商品名须含汉字，防误吞纯数字条码
+            ?.let { m ->
+                val product = m.groupValues[1].trim()
+                val fen = parseMoney(m.groupValues[2]) ?: return clarification()
+                return AiResponse.ToolCall(
+                    "change_price",
+                    mapOf("product" to product, "price" to fen.toString())
+                )
+            }
         return clarification()
     }
 
-    /** 查询词清洗：去掉「卖/的/价格」等尾缀（Task 059 语音口语）。 */
-    private fun cleanProductQuery(raw: String): String =
-        raw.trim().removeSuffix("卖").removeSuffix("的").removeSuffix("价格").trim()
+    /** 查询词清洗：去掉「卖/的/价格/一斤/一个/一盒/一块/一公斤/一米」等尾缀（Task 059 语音口语）。 */
+    private fun cleanProductQuery(raw: String): String {
+        var t = raw.trim()
+        for (suffix in listOf("一公斤", "一斤", "一个", "一盒", "一块", "一米", "卖", "的", "价格")) {
+            t = t.removeSuffix(suffix)
+        }
+        return t.trim()
+    }
 
     /** 支付方式词 → 支付方式编码（结账两类句式共用）。 */
     private fun paymentMethod(raw: String): String = when (raw) {
@@ -531,9 +547,13 @@ class LocalRuleParser : AiProvider {
         val CHANGE_PRICE_PATTERN = Regex(
             "^(.+?)(?:的)?(?:价格)?改(?:价|成|为|到)\\s*($ARABIC_MONEY|$CHINESE_MONEY)\\s*元?$"
         )
-        /** 改价「是」形：土豆的销售价格是四块 / 土豆价格是四块（Task 059） */
+        /** 改价「是」形：土豆的销售价格是四块 / 土豆的售价是四块（Task 059） */
         val PRICE_IS_PATTERN = Regex(
-            "^(.+?)(?:的)?(?:销售)?价格是\\s*($ARABIC_MONEY|$CHINESE_MONEY)\\s*元?$"
+            "^(?!进|买)(.+?)(?:的)?(?:销售价|售价|卖价|价格)是\\s*($ARABIC_MONEY|$CHINESE_MONEY)\\s*元?$"
+        )
+        /** 改价无动词形：土豆售价四块 / 土豆价格四块 / 土豆四块钱（Task 059） */
+        val PRICE_NO_VERB_PATTERN = Regex(
+            "^(?!进|买|建)(.+?)(?:的)?(?:售价|卖价|价格)?\\s*($ARABIC_MONEY|$CHINESE_MONEY)\\s*元?$"
         )
         /** 改价「卖」形：土豆卖四块（置于采购句式之后防误吞「进100斤土豆卖3块8」） */
         val SELL_PRICE_PATTERN = Regex(

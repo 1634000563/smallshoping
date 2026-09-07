@@ -82,3 +82,8 @@
 {"id": "unit-002", "utterance": "卖四块豆腐", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
 {"id": "unit-003", "utterance": "进了100块豆腐", "expected_intent": "PURCHASE_IN", "expected_tool": "purchase_in", "risk": "LOW", "clarification": false}
 {"id": "unit-004", "utterance": "两块豆腐", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
+{"id": "price-001", "utterance": "土豆的售价是四块", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
+{"id": "price-002", "utterance": "土豆售价四块", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
+{"id": "price-003", "utterance": "土豆价格四块", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
+{"id": "price-004", "utterance": "土豆四块钱", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
+{"id": "price-005", "utterance": "西红柿一斤多少钱", "expected_intent": "FIND_PRODUCT", "expected_tool": "find_product", "risk": "LOW", "clarification": false}
