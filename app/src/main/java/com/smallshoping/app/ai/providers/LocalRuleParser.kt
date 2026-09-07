@@ -9,12 +9,13 @@ import com.smallshoping.app.core.money.MoneyParser
  * 确定性、零网络、零密钥；只覆盖少数高频句式，复杂表达交云端模型。
  * 解析失败返回 [AiResponse.Clarification]，绝不猜测（产品宪法 #9）。
  *
- * 支持的句式（V1 最小集，随 Task 014/025 扩展）：
+ * 支持的句式（V1 最小集，随 Task 014/025/056 扩展）：
  * - 「今天卖了多少钱」→ GET_TODAY_SALES
  * - 「卖两斤土豆」「来两斤土豆」→ ADD_SALE_ITEM
  * - 「土豆多少钱」→ FIND_PRODUCT
  * - 「给张姐充200」→ RECHARGE_MEMBER（金额元→分）
- * - 「进100斤土豆」→ PURCHASE_IN
+ * - 「进100斤土豆」「进100斤土豆，2块8」→ PURCHASE_IN（进价可带「成本/进价」或紧跟逗号）
+ * - 「微信。」「微信结账」→ CHECKOUT_SALE（裸支付词结账，spec 17 路径 A）
  */
 class LocalRuleParser : AiProvider {
 
@@ -43,15 +44,14 @@ class LocalRuleParser : AiProvider {
     }
 
     private fun parseWithEntity(text: String): AiResponse {
+        // 「微信。」口语结账（spec 17 路径 A）：只说支付方式即按该方式结账，
+        // 无待结账单时由 Handler 明确提示（不猜测不伪造）
+        BARE_PAYMENT_PATTERN.find(text)?.let { m ->
+            return AiResponse.ToolCall("checkout_sale", mapOf("payment_method" to paymentMethod(m.groupValues[1])))
+        }
         // 结账/买单（V1 默认现金手工确认；具体方式可显式说明）
         CHECKOUT_PATTERN.find(text)?.let { m ->
-            val method = when (m.groupValues[1]) {
-                "微信" -> "wechat"
-                "支付宝" -> "alipay"
-                "会员" -> "member"
-                else -> "cash"
-            }
-            return AiResponse.ToolCall("checkout_sale", mapOf("payment_method" to method))
+            return AiResponse.ToolCall("checkout_sale", mapOf("payment_method" to paymentMethod(m.groupValues[1])))
         }
         // 老张上次那些螺丝再来两盒（Task 027：客户+商品+数量补单）
         REORDER_PATTERN.find(text)?.let { m ->
@@ -218,6 +218,8 @@ class LocalRuleParser : AiProvider {
             val unit = m.groupValues[2].ifBlank { "斤" }
             val productAndRest = m.groupValues[3].trim()
             val cost = COST_PATTERN.find(productAndRest)?.groupValues?.get(1)
+                // spec 17 路径 A：「进100斤土豆，2块8」——进价可紧跟逗号省略「成本/进价」
+                ?: COMMA_COST_PATTERN.find(productAndRest)?.groupValues?.get(1)
             // 剥离成本与售价提示，取剩余首段为商品名
             val product = productAndRest
                 .replace(COST_PATTERN, "")
@@ -242,6 +244,14 @@ class LocalRuleParser : AiProvider {
             )
         }
         return clarification()
+    }
+
+    /** 支付方式词 → 支付方式编码（结账两类句式共用）。 */
+    private fun paymentMethod(raw: String): String = when (raw) {
+        "微信" -> "wechat"
+        "支付宝" -> "alipay"
+        "会员" -> "member"
+        else -> "cash"
     }
 
     /** 单个中文数字（含「两」「半」）转阿拉伯数字；复合数字（如十五）暂不支持。 */
@@ -275,6 +285,8 @@ class LocalRuleParser : AiProvider {
 
     private companion object {
         val CHECKOUT_PATTERN = Regex("^(?:结账|买单|(微信|支付宝|现金|会员)结账)$")
+        /** 裸支付词结账（spec 17 路径 A：「微信。」）；无单场景由 Handler 明确提示。 */
+        val BARE_PAYMENT_PATTERN = Regex("^(微信|支付宝|现金|会员)$")
         val QUANTITY_PATTERN =
             Regex("^(?:卖|来)(\\d+(?:\\.\\d+)?|[一两二三四五六七八九十半])\\s*(斤|公斤|kg|克|个|盒|米)?\\s*(.+)$")
         val PURCHASE_PATTERN =
@@ -330,6 +342,8 @@ class LocalRuleParser : AiProvider {
             Regex("^给?(.+?)充(\\d+块\\d?毛?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)\\s*元?$")
         /** 成本/进价金额：长形态优先，防止 \d+ 提前截断「2块8」 */
         val COST_PATTERN = Regex("(?:成本|进价)\\s*(\\d+块\\d?|\\d+元|\\d+(?:\\.\\d+)?|\\d+)")
+        /** 逗号后裸进价（spec 17 路径 A：「进100斤土豆，2块8」）；仅块/元形态防误吞数量 */
+        val COMMA_COST_PATTERN = Regex("(?:，|,)\\s*(\\d+块\\d?毛?|\\d+(?:\\.\\d+)?元)")
         /** 句中附带售价改价要求（V1 单次只执行入库，改价引导单独说），长形态优先 */
         val SALE_PRICE_HINT_PATTERN = Regex("卖\\s*(\\d+块\\d?|\\d+(?:\\.\\d+)?|\\d+)")
         val CHINESE_NUMERALS = mapOf(
