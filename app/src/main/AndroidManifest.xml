@@ -3,6 +3,12 @@
 
     <!-- 语音输入（V1 主入口之一，安全宪法：最小权限） -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Task 052 摄像头扫码（最小权限，仅扫码用） -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Task 052 设备兼容：无摄像头/无麦克风设备仍可安装（扫码/语音均有键盘降级） -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application
         android:allowBackup="false"
@@ -11,7 +17,8 @@
 
         <activity
             android:name=".feature.home.MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

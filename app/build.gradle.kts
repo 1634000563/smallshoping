@@ -41,4 +41,12 @@ dependencies {
     // Architecture Guard 的代码级自动检查
     testImplementation("com.tngtech.archunit:archunit:1.3.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
+
+    // Task 052 真机扫码：CameraX + MLKit 条码（standalone，离线可用，不依赖 Google Play 服务）
+    implementation("androidx.core:core:1.15.0")
+    implementation("androidx.activity:activity:1.8.2")
+    implementation("androidx.camera:camera-camera2:1.4.1")
+    implementation("androidx.camera:camera-lifecycle:1.4.1")
+    implementation("androidx.camera:camera-view:1.4.1")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
 }
