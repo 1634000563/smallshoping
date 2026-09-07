@@ -33,3 +33,17 @@
 {"id": "ux-003", "utterance": "土豆价格改为三块八。", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
 {"id": "ux-004", "utterance": "给张姐充两百", "expected_intent": "RECHARGE_MEMBER", "expected_tool": "recharge_member", "risk": "MEDIUM", "clarification": false}
 {"id": "ux-005", "utterance": "我想卖两斤土豆", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
+{"id": "ux-006", "utterance": "土豆的销售价格是四块", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
+{"id": "ux-007", "utterance": "土豆卖四块", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
+{"id": "ux-008", "utterance": "土豆还有多少货", "expected_intent": "GET_STOCK", "expected_tool": "get_stock", "risk": "LOW", "clarification": false}
+{"id": "ux-009", "utterance": "老张欠多少钱", "expected_intent": "GET_CUSTOMER_DEBT", "expected_tool": "get_customer_debt", "risk": "LOW", "clarification": false}
+{"id": "ux-010", "utterance": "现在有什么", "expected_intent": "GET_CURRENT_SALE", "expected_tool": "get_current_sale", "risk": "LOW", "clarification": false}
+{"id": "ux-011", "utterance": "卖了2斤土豆", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
+{"id": "ux-012", "utterance": "加两斤土豆", "expected_intent": "ADD_SALE_ITEM", "expected_tool": "add_sale_item", "risk": "LOW", "clarification": false}
+{"id": "ux-013", "utterance": "进了100斤土豆", "expected_intent": "PURCHASE_IN", "expected_tool": "purchase_in", "risk": "LOW", "clarification": false}
+{"id": "ux-014", "utterance": "土豆多少钱一斤", "expected_intent": "FIND_PRODUCT", "expected_tool": "find_product", "risk": "LOW", "clarification": false}
+{"id": "ux-015", "utterance": "张姐余额多少", "expected_intent": "GET_MEMBER_BALANCE", "expected_tool": "get_member_balance", "risk": "LOW", "clarification": false}
+{"id": "ux-016", "utterance": "给张姐充两百块钱", "expected_intent": "RECHARGE_MEMBER", "expected_tool": "recharge_member", "risk": "MEDIUM", "clarification": false}
+{"id": "ux-017", "utterance": "老张还钱100", "expected_intent": "SETTLE_CUSTOMER_DEBT", "expected_tool": "settle_customer_debt", "risk": "MEDIUM", "clarification": false}
+{"id": "ux-018", "utterance": "刚才那个去掉", "expected_intent": "REMOVE_SALE_ITEM", "expected_tool": "remove_sale_item", "risk": "MEDIUM", "clarification": false}
+{"id": "ux-019", "utterance": "把土豆改成四块", "expected_intent": "CHANGE_PRICE", "expected_tool": "change_price", "risk": "MEDIUM", "clarification": false}
