@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.util.zip.ZipFile
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -59,4 +62,82 @@ tasks.register("releaseGate") {
     group = "verification"
     description = "V1 发布门禁：全量单测（含黄金语句集回归与架构守卫生）+ 构建 APK"
     dependsOn("testDebugUnitTest", "assembleDebug")
+}
+
+// Task 059：RC APK 验收——签名有效、无云密钥入包、清单包名与 minSdk 正确
+val verifyRcApk by tasks.registering {
+    group = "verification"
+    description = "RC APK 验收：签名验证 + 云密钥扫描 + 清单校验"
+    dependsOn("assembleDebug")
+    doLast {
+        val apk = file("build/outputs/apk/debug/app-debug.apk")
+        check(apk.exists()) { "APK 不存在：${apk.absolutePath}" }
+        check(apk.length() > 100_000) { "APK 大小异常：${apk.length()}" }
+
+        // SDK 路径：优先 env，回退 local.properties（sdk.dir）
+        val props = Properties()
+        file("local.properties").takeIf { it.exists() }?.inputStream()?.use { props.load(it) }
+        val sdk = System.getenv("ANDROID_HOME")
+            ?: System.getenv("ANDROID_SDK_ROOT")
+            ?: props.getProperty("sdk.dir")?.replace("\\", "/")?.let {
+                if (it.startsWith("D:/")) it else "D:/$it"
+            }
+        check(!sdk.isNullOrBlank()) { "无法定位 Android SDK（ANDROID_HOME / local.properties）" }
+
+        // 1) 签名验证（apksigner：验证失败退出码非 0）
+        val apksignerJar = file("$sdk/build-tools/35.0.0/lib/apksigner.jar")
+        check(apksignerJar.exists()) { "apksigner 不存在：${apksignerJar.absolutePath}" }
+        val verifyExit = providers.exec {
+            commandLine("java", "-jar", apksignerJar.absolutePath, "verify", apk.absolutePath)
+        }.result.get().exitValue
+        check(verifyExit == 0) { "APK 签名验证失败（apksigner exit=$verifyExit）" }
+        val certOutput = providers.exec {
+            commandLine(
+                "java", "-jar", apksignerJar.absolutePath,
+                "verify", "--print-certs", apk.absolutePath
+            )
+        }.standardOutput.asText.get()
+        println("签名证书：${certOutput.lines().firstOrNull()?.substringAfter("DN: ") ?: "未知"}")
+
+        // 2) 云密钥安全扫描（安全宪法 #1：云端 AI 密钥不得进 APK）
+        ZipFile(apk).use { zip ->
+            val patterns = listOf(Regex("sk-[A-Za-z0-9]{20,}"), Regex("AIza[0-9A-Za-z_-]{30,}"))
+            val hits = ArrayList<String>()
+            val entries = zip.entries()
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                if (entry.isDirectory || entry.size > 2_000_000) continue
+                zip.getInputStream(entry).bufferedReader().useLines { lines ->
+                    lines.forEachIndexed { index, line ->
+                        if (patterns.any { it.containsMatchIn(line) }) {
+                            hits.add("${entry.name} 第 ${index + 1} 行")
+                        }
+                    }
+                }
+            }
+            check(hits.isEmpty()) { "APK 内发现疑似云密钥：$hits" }
+        }
+
+        // 3) 清单校验：包名与 minSdk（ADR-014）
+        val aapt2 = file("$sdk/build-tools/35.0.0/aapt2.exe")
+        check(aapt2.exists()) { "aapt2 不存在：${aapt2.absolutePath}" }
+        val badging = providers.exec {
+            commandLine(aapt2.absolutePath, "dump", "badging", apk.absolutePath)
+        }.standardOutput.asText.get()
+        check(badging.contains("package: name='com.smallshoping.app'")) {
+            "APK 包名不符合 ADR-014：\n${badging.lines().firstOrNull()}"
+        }
+        check(badging.contains("minSdkVersion:'24'")) {
+            "APK minSdk 不是 24（ADR-014）：\n${badging.lines().filter { it.contains("SdkVersion") }}"
+        }
+        val version = Regex("versionName='([^']+)'").find(badging)?.groupValues?.get(1)
+        println("RC APK 验收通过：${apk.name}（${apk.length() / 1024} KB，versionName=$version）")
+    }
+}
+
+// Task 059：V1 发布候选——发布门禁 + RC APK 验收一条命令
+tasks.register("releaseCandidate") {
+    group = "verification"
+    description = "V1 发布候选：releaseGate（全量测试+黄金集+构建）+ RC APK 验收"
+    dependsOn("releaseGate", "verifyRcApk")
 }

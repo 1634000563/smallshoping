@@ -1,4 +1,4 @@
-# Release Gate — V1 发布门禁（Task 054）
+# Release Gate — V1 发布门禁（Task 054/059）
 
 ## 一条命令
 
@@ -13,6 +13,27 @@
    - Architecture Guard 代码级检查（BoundaryGuardTest）
    - 各 Gate 验收（Gate A/B/C、切片、压测等全部套件）
 2. `assembleDebug` —— APK 构建通过
+
+## RC 构建与安装验收（Task 059）
+
+```bash
+./gradlew :app:releaseCandidate   # releaseGate + RC APK 验收
+```
+
+RC APK 验收（verifyRcApk）自动检查：
+
+1. 签名有效（apksigner verify，退出码 0）；
+2. 云密钥扫描：APK 内不得出现 sk-/AIza 密钥模式（安全宪法 #1）；
+3. 清单校验：包名 `com.smallshoping.app`、minSdk 24（ADR-014）。
+
+安装验收（需连接真机，`adb devices` 确认）：
+
+```bash
+adb install app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.smallshoping.app/.feature.home.MainActivity
+```
+
+真机冒烟清单：语音按钮/扫码按钮权限弹窗、卖两斤土豆→结账、查账页打开、切后台再回前台不崩。
 
 ## 红线（任一违反 = 门禁 FAIL，不得上线）
 
